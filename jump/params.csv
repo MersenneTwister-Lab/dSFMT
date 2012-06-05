@@ -1,0 +1,11 @@
+# mexp pos1 sl1 mask1 mask2
+521 3 25 0x000fbfefff77efff 0x000ffeebfbdfbfdf
+1279 9 19 0x000efff7ffddffee 0x000fbffffff77fff
+2203 7 19 0x000fdffff5edbfff 0x000f77fffffffbfe
+4253 19 19 0x0007b7fffef5feff 0x000ffdffeffefbfc
+11213 37 19 0x000ffffffdf7fffd 0x000dfffffff6bfff
+19937 117 19 0x000ffafffffffb3f 0x000ffdfffc90fffd
+44497 304 19 0x000ff6dfffffffef 0x0007ffdddeefff6f
+86243 231 13 0x000ffedff6ffffdf 0x000ffff7fdffff7e
+132049 371 23 0x000fb9f4eff4bf77 0x000fffffbfefff37
+216091 1890 23 0x000bf7df7fefcfff 0x000e7ffffef737ff

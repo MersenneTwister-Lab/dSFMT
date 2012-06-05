@@ -1,3 +1,8 @@
+ver 2.2.0
+-------
+Add jump function.
+move do_recursion to dSFMT-common.h
+
 ver 2.1.1
 -------
 The initialization of the constants for sse2 is changed.
@@ -5,7 +10,7 @@ Old version may cause trouble in parallel environment like OpenMP.
 
 ver 2.1
 -------
-This version supports the periods from 2521-1 to 2216091-1.
+This version supports the periods from 2^521-1 to 2^216091-1.
 We added new function dsfmt_genrand_uint32, which returns 32-bit
 unsigned integer. If you need many floating point pseudo random
 numbers and a few integers, you don't need to use another
