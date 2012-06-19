@@ -27,12 +27,29 @@
 extern "C" {
 #endif
 
-    static const uint64_t fix[] = {
-	UINT64_C(0x00069a07426b5843), UINT64_C(0x0003ef4acb14fc95),
-	UINT64_C(0x000caae34490ca9c), UINT64_C(0x00047ebdee94edf9),
-	UINT64_C(0x000ddf318b9c6bac), UINT64_C(0x000488deb751f65b),
-	UINT64_C(0x00053752bd35283c), UINT64_C(0x000a1135d25a0235),
-	UINT64_C(0x05e9c8d9cbe6467d), UINT64_C(0x602eae9da43ea01f)
+    struct FIX_T {
+	int mexp;
+	uint64_t fix[4];
+    };
+
+    struct FIX_T fix_table[] = {
+	{521, {UINT64_C(0x3fff56977f035125),
+	       UINT64_C(0x3ff553857b015035),
+	       UINT64_C(0x4034434434434434),
+	       UINT64_C(0x0140151151351371)}},
+	{1279, {UINT64_C(0x3ff87befce70e89f),
+		UINT64_C(0x3ff5f6afa3c60868),
+		UINT64_C(0xa4ca4caccaccacdb),
+		UINT64_C(0x40444444444c44c4)}},
+	{4253, {UINT64_C(0x3ff85a66da51a81a),
+		UINT64_C(0x3ff4f4aeab9688eb),
+		UINT64_C(0x20524524534d34d3),
+		UINT64_C(0xc9cc9cc9cc9ccdcf)}},
+	{216091, {UINT64_C(0x3ff096d54a871071),
+		  UINT64_C(0x3ffafa9bfbd5d55d),
+		  UINT64_C(0x0470470470573573),
+		  UINT64_C(0x0250250251259259)}},
+	{0, {}}
     };
 
     inline static void next_state(dsfmt_t * dsfmt);
@@ -104,61 +121,24 @@ extern "C" {
 
     inline static void add_fix(dsfmt_t * dsfmt) {
 	int i;
-	uint64_t *psfmt;
-
-	psfmt = &dsfmt->status[0].u[0];
-	for (i = 0; i < (DSFMT_N + 1) * 2; i++) {
-	    psfmt[i] ^= fix[i];
-	}
-    }
-
-    inline static void setup_fix(dsfmt_t * dsfmt) {
-	int i;
-	uint64_t *psfmt;
-
-	psfmt = &dsfmt->status[0].u[0];
-	for (i = 0; i < (DSFMT_N + 1) * 2; i++) {
-	    psfmt[i] ^= fix[i];
-	}
-	for (i = 0; i < DSFMT_N * 2; i++) {
-	    psfmt[i] &= DSFMT_LOW_MASK;
-	}
-    }
-
-    inline static void teardown_fix(dsfmt_t * dsfmt) {
-	int i;
-	uint64_t *psfmt;
-
-	psfmt = &dsfmt->status[0].u[0];
-	for (i = 0; i < (DSFMT_N + 1) * 2; i++) {
-	    psfmt[i] ^= fix[i];
-	}
-	for (i = 0; i < DSFMT_N * 2; i++) {
-	    psfmt[i] |= DSFMT_HIGH_CONST;
-	}
-    }
-
-    inline static void add_fix_dummy(dsfmt_t * dsfmt) {
-	int i;
-	uint64_t *psfmt;
-
-	psfmt = &dsfmt->status[0].u[0];
-	for (i = 0; i < DSFMT_N * 2; i++) {
-	    if ((psfmt[i] & DSFMT_HIGH_CONST) == 0) {
-		psfmt[i] |= DSFMT_HIGH_CONST;
+	int index = -1;
+	for (i = 0; fix_table[i].mexp != 0; i++) {
+	    if (fix_table[i].mexp == DSFMT_MEXP) {
+		index = i;
+	    }
+	    if (fix_table[i].mexp > DSFMT_MEXP) {
+		break;
 	    }
 	}
-    }
-
-    inline static void set_constant(dsfmt_t * dsfmt) {
-	int i;
-	uint64_t *psfmt;
-
-	psfmt = &dsfmt->status[0].u[0];
-	for (i = 0; i < DSFMT_N * 2; i++) {
-	    psfmt[i] &= DSFMT_LOW_MASK;
-	    psfmt[i] |= DSFMT_HIGH_CONST;
+	if (index < 0) {
+	    return;
 	}
+	for (i = 0; i < DSFMT_N; i++) {
+	    dsfmt->status[i].u[0] ^= fix_table[index].fix[0];
+	    dsfmt->status[i].u[1] ^= fix_table[index].fix[1];
+	}
+	dsfmt->status[DSFMT_N].u[0] ^= fix_table[index].fix[2];
+	dsfmt->status[DSFMT_N].u[1] ^= fix_table[index].fix[3];
     }
 
 /**
@@ -171,7 +151,7 @@ extern "C" {
 	int index = dsfmt->idx;
 	int bits;
 	memset(&work, 0, sizeof(dsfmt_t));
-	//setup_fix(dsfmt);
+	add_fix(dsfmt);
 	dsfmt->idx = DSFMT_N64;
 
 	for (int i = 0; jump_string[i] != '\0'; i++) {
@@ -193,7 +173,7 @@ extern "C" {
 	    }
 	}
 	*dsfmt = work;
-	//add_fix_dummy(dsfmt);
+	add_fix(dsfmt);
 	dsfmt->idx = index;
     }
 

@@ -33,7 +33,7 @@ using namespace dsfmt;
 
 static void read_file(GF2X& characteristic, int line_no, const string& file);
 static void test(dsfmt_t * dsfmt, GF2X& poly);
-static int check(dsfmt_t *a, dsfmt_t *b);
+static int check(dsfmt_t *a, dsfmt_t *b, int verbose);
 static void print_state(dsfmt_t *a, dsfmt_t * b);
 static void print_state_line(w128_t *a, w128_t *b);
 static void print_sequence(dsfmt_t *a, dsfmt_t * b);
@@ -41,27 +41,17 @@ static void speed(dsfmt_t * dsfmt, GF2X& characteristic);
 
 int main(int argc, char * argv[]) {
     if (argc <= 1) {
-	printf("%s -s|-c\n", argv[0]);
+	printf("%s -s|-c [prefix]\n", argv[0]);
 	return -1;
+    }
+    string prefix = "lcm.";
+    if (argc >= 3) {
+	prefix = argv[2];
     }
     stringstream ss_file;
     GF2X characteristic;
-    ss_file << "lcm." << DSFMT_MEXP << ".txt";
+    ss_file << prefix << DSFMT_MEXP << ".txt";
     read_file(characteristic, 0, ss_file.str());
-#if 0
-    string step_string = argv[1];
-    ZZ step;
-    stringstream ss(step_string);
-    ss >> step;
-    string jump_str;
-    calc_jump(jump_str, step, characteristic);
-
-    string tmp;
-    polytostring(tmp, characteristic);
-    cout << "tmp :" << endl;
-    cout << tmp << endl;
-    cout << jump_str << endl;
-#endif
     dsfmt_t dsfmt;
     if (argv[1][1] == 's') {
 	speed(&dsfmt, characteristic);
@@ -122,11 +112,6 @@ static void speed(dsfmt_t * dsfmt, GF2X& characteristic)
 	     << endl;
 	test_count *= 100;
 	exp += 2;
-#if 0
-	if (elapsed1 > 200.0) {
-	    break;
-	}
-#endif
     }
 }
 
@@ -154,7 +139,7 @@ static void read_file(GF2X& characteristic, int line_no, const string& file)
 #endif
 }
 
-static int check(dsfmt_t *a, dsfmt_t *b)
+static int check(dsfmt_t *a, dsfmt_t *b, int verbose)
 {
     int check = 0;
     for (int i = 0; i < 100; i++) {
@@ -168,7 +153,9 @@ static int check(dsfmt_t *a, dsfmt_t *b)
 	}
     }
     if (check == 0) {
-	printf("OK!\n");
+	if (verbose) {
+	    printf("OK!\n");
+	}
     } else {
 	printf("NG!\n");
     }
@@ -222,7 +209,6 @@ static void test(dsfmt_t * dsfmt, GF2X& characteristic)
 {
     dsfmt_t new_dsfmt_z;
     dsfmt_t * new_dsfmt = &new_dsfmt_z;
-//    uint32_t seed[] = {1, 998102, 1234, 0, 5};
     uint32_t seed[20] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
     long steps[] = {1, 2, DSFMT_N + 1,
 		    DSFMT_N * 128 - 1,
@@ -238,7 +224,7 @@ static void test(dsfmt_t * dsfmt, GF2X& characteristic)
     string jump_string;
 
     dsfmt_init_gen_rand(dsfmt, seed[0]);
-//    dsfmt_genrand_close_open(dsfmt);
+    dsfmt_genrand_close_open(dsfmt);
     /* plus jump */
     for (int index = 0; index < steps_size; index++) {
 //	dsfmt_init(dsfmt, seed[index]);
@@ -260,33 +246,25 @@ static void test(dsfmt_t * dsfmt, GF2X& characteristic)
 	cout << "after jump:" << endl;
 	print_state(new_dsfmt, dsfmt);
 #endif
-	if (check(new_dsfmt, dsfmt)) {
+	if (check(new_dsfmt, dsfmt, 1)) {
 	    return;
 	}
     }
     dsfmt_t rnd;
-    dsfmt_init_gen_rand(&rnd, (uint32_t)clock() );
+    dsfmt_init_gen_rand(&rnd, (uint32_t)clock());
     for (int index = 0; index < 100; index++) {
 	dsfmt_init_gen_rand(dsfmt, dsfmt_genrand_uint32(&rnd));
 	test_count = dsfmt_genrand_uint32(&rnd) % 100000;
-	cout << "mexp " << dec << DSFMT_MEXP << " jump "
-	     << test_count << " steps" << endl;
 	*new_dsfmt = *dsfmt;
 	for (long i = 0; i < test_count * 2; i++) {
 	    dsfmt_genrand_uint32(dsfmt);
 	}
 	calc_jump(jump_string, test_count, characteristic);
-#if defined(DEBUG)
-	cout << "jump string:" << jump_string << endl;
-	cout << "before jump:" << endl;
-	print_state(new_dsfmt, dsfmt);
-#endif
 	dSFMT_jump(new_dsfmt, jump_string.c_str());
-#if defined(DEBUG)
-	cout << "after jump:" << endl;
-	print_state(new_dsfmt, dsfmt);
-#endif
-	if (check(new_dsfmt, dsfmt)) {
+	if (check(new_dsfmt, dsfmt, 0)) {
+	    cout << "mexp " << dec << DSFMT_MEXP << " jump "
+		 << test_count << " steps ";
+	    cout << "check NG!" << endl;
 	    return;
 	}
     }

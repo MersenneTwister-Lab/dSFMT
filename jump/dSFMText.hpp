@@ -35,6 +35,15 @@ namespace dsfmt {
 	/**
 	 * Constructor from parameters.
 	 */
+	dSFMText() {
+	    dSFMText(19937, 117, 19, 0x000ffafffffffb3f, 0x000ffdfffc90fffd);
+	}
+	dSFMText(dSFMText& that) {
+	    dSFMText(that.mexp, that.pos1, that.sl1, that.mask1, that.mask2);
+	    for (int i = 0; i < size; i++) {
+		state[i] = that.state[i];
+	    }
+	}
 	dSFMText(int mexp, int pos1, int sl1,
 		  uint64_t mask1, uint64_t mask2) {
 		this->mexp = mexp;
@@ -63,7 +72,29 @@ namespace dsfmt {
 		cout << "maxdegree:" << dec << this->maxdegree << endl;
 #endif
 	}
-
+	dSFMText& operator= (dSFMText& that) {
+	    if (this == &that) {
+		return *this;
+	    }
+	    w128_t * old_state = state;
+	    this->mexp = that.mexp;
+	    this->sl1 = that.sl1;
+	    this->sr = 12;
+	    this->pos1 = that.pos1;
+	    this->mask1 = that.mask1;
+	    this->mask2 = that.mask2;
+	    this->size = that.size;
+	    this->maxdegree = that.maxdegree;
+	    this->state = new w128_t[size];
+	    this->index = 0;
+	    this->bitpos = 0;
+	    for (int i = 0; i < size; i++) {
+		state[i].u[0] = that.state[i].u[0];
+		state[i].u[1] = that.state[i].u[1];
+	    }
+	    delete[] old_state;
+	    return *this;
+	}
 	/**
 	 * release internal state.
 	 */
@@ -80,48 +111,48 @@ namespace dsfmt {
 	    return 128 * size;
 	}
 	void init_basis() {
-	    init_basis(0);
+	    init_basis(bitpos);
+	    bitpos++;
 	}
 #if 0
-	void init_basis(int affine) {
-	    if (bitpos >= maxdegree) {
-		throw new logic_error("exceed max degree");
-	    }
+	void init_basis(int num) {
 	    int i, j, k;
 	    uint64_t mask;
-	    if (bitpos >= maxdegree - 128) {
-		k = bitpos % 64;
-		j = (bitpos / 64) % 2;
-		i = size - 1;
-	    } else {
-		k = bitpos % 52;
-		j = (bitpos / 52) % 2;
-		i = bitpos / (52 * 2);
- 	    }
+	    k = num % 64;
+	    j = (num / 64) % 2;
+	    i = num / (64 * 2);
 	    memset(state, 0, sizeof(w128_t) * size);
 	    mask = UINT64_C(1) << k;
 	    state[i].u[j] = mask;
-	    bitpos++;
-	    if (affine) {
-		setup_high();
-	    }
 	}
 #else
-	void init_basis(int affine) {
-//	    if (bitpos >= maxdegree) {
-//		throw new logic_error("exceed max degree");
-//	    }
+	void init_basis(int num) {
 	    int i, j, k;
 	    uint64_t mask;
-	    k = bitpos % 64;
-	    j = (bitpos / 64) % 2;
-	    i = bitpos / (64 * 2);
+	    if (num >= (104 * (size -1))) {
+		num = num - 104 * (size - 1);
+		k = num % 64;
+		j = num / 64;
+		i = size - 1;
+	    } else {
+		k = num % 52;
+		j = (num / 52) % 2;
+		i = num / (52 * 2);
+	    }
+	    if ((i >= size) ||
+		(i < 0) ||
+		(j < 0) ||
+		(j >= 2)) {
+		cerr << "index out of range i:" << dec << i
+		     << " j:" << dec << j << endl;
+	    }
 	    memset(state, 0, sizeof(w128_t) * size);
 	    mask = UINT64_C(1) << k;
 	    state[i].u[j] = mask;
-	    bitpos++;
-	    if (affine) {
-		setup_high();
+
+	    uint64_t *psfmt64 = &state[0].u[0];
+	    for (int i = 0; i < size * 2 - 2; i++) {
+		psfmt64[i] &= UINT64_C(0x000fffffffffffff);
 	    }
 	}
 #endif
@@ -189,21 +220,33 @@ namespace dsfmt {
 	    } else {
 		mask = 0;
 	    }
-#if 0
+	    bitpos = 0;
+#if 1
 	    uint64_t *psfmt64 = &state[0].u[0];
 	    for (int i = 0; i < size * 2 - 2; i++) {
 		psfmt64[i] &= UINT64_C(0x000fffffffffffff);
 		psfmt64[i] |= mask;
 	    }
 #endif
-	    index = size - 1;
+	    //index = size - 1;
+	    index = 0;
 	}
 	void add(dSFMText& that) {
+#if 0
 	    int diff = (that.index - index + size -1) % (size - 1);
 	    for (int i = 0; i < size - 1; i++) {
 		state[i].u[0] ^= that.state[(i + diff) % (size - 1)].u[0];
 		state[i].u[1] ^= that.state[(i + diff) % (size - 1)].u[1];
 	    }
+#else
+	    int sizex = this->size - 1;
+	    for (int i = 0; i < size - 1; i++) {
+		this->state[(i + this->index) % sizex].u[0]
+		    ^= that.state[(i + that.index) % sizex].u[0];
+		this->state[(i + this->index) % sizex].u[1]
+		    ^= that.state[(i + that.index) % sizex].u[1];
+	    }
+#endif
 	    state[size - 1].u[0] ^= that.state[size - 1].u[0];
 	    state[size - 1].u[1] ^= that.state[size - 1].u[1];
 	}
@@ -220,14 +263,6 @@ namespace dsfmt {
 	    state[size - 2].u[1] = UINT64_C(0x0003ff0000000000);
 	    state[size - 1].u[0] = UINT64_C(0x3ff0000000000000);
 	    state[size - 1].u[1] = UINT64_C(0x3ff0000000000000);
-#if 0
-	    for (int i = 0; i < size - 1; i++) {
-		state[i].u[0] &= UINT64_C(0x000fffffffffffff);
-		state[i].u[0] |= UINT64_C(0x3ff0000000000000);
-		state[i].u[1] &= UINT64_C(0x000fffffffffffff);
-		state[i].u[1] |= UINT64_C(0x3ff0000000000000);
-	    }
-#endif
 	}
 	void setup_high() {
 	    for (int i = 0; i < size - 1; i++) {

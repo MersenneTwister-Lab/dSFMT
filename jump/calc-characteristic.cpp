@@ -16,6 +16,7 @@
 #include <iostream>
 #include <inttypes.h>
 #include <stdint.h>
+#include <time.h>
 #include "dSFMText.hpp"
 #include "dSFMT-calc-jump.hpp"
 #include <NTL/GF2X.h>
@@ -26,21 +27,33 @@ using namespace dsfmt;
 using namespace NTL;
 using namespace std;
 
-void calc_minimal(GF2X& minimal, dSFMText& dsfmt, int bitpos)
+void calc_minimal(GF2X& minimal, int maxdegree, w128_t outseq[], int pos)
 {
-    uint64_t mask[2];
-    if (bitpos >= 52) {
-	mask[0] = 0;
-	mask[1] = UINT64_C(1) << (bitpos - 52);
-    } else {
-	mask[0] = UINT64_C(1) << bitpos;
-	mask[1] = 0;
-    }
-    int maxdegree = dsfmt.get_mamaxdegree();
+    uint64_t mask = 0;
     vec_GF2 seq;
     seq.SetLength(2 * maxdegree);
+    int idx = 0;
+
+    if (pos >= 104 || pos < 0) {
+	cerr << "pos error:" << dec << pos << endl;
+	exit(1);
+    } else if (pos >= 52) {
+	idx = 1;
+	mask = UINT64_C(1) << (pos - 52);
+    } else {
+	idx = 0;
+	mask = UINT64_C(1) << pos;
+    }
+    if (idx < 0 || idx >= 2) {
+	cerr << "idx error:" << dec << idx << endl;
+	exit(1);
+    }
     for (int i = 0; i < 2 * maxdegree; i++) {
-	seq[i] = dsfmt.next(mask);
+	if ((outseq[i].u[idx] & mask) != 0) {
+	    seq[i] = 1;
+	} else {
+	    seq[i] = 0;
+	}
     }
     MinPolySeq(minimal, seq, maxdegree);
 #if defined(DEBUG)
@@ -52,56 +65,53 @@ void LCM(GF2X& lcm, const GF2X& x, const GF2X& y) {
     GF2X gcd;
     mul(lcm, x, y);
     GCD(gcd, x, y);
-    lcm /= gcd;
+//void DivRem(GF2X& q, GF2X& r, const GF2X& a, const GF2X& b);
+// q = a/b, r = a%b
+    GF2X r;
+    DivRem(lcm, r, lcm, gcd);
+    if (deg(r) != -1) {
+	cerr << "LCM error: deg(r) = " << dec << deg(r);
+	cerr << "r:" << r << endl;
+	exit(1);
+    }
+}
+
+static void get_lcm_sub(GF2X& lcmpoly, dSFMText& dsfmt) {
+    GF2X tmp(1,1);
+    int maxdegree = dsfmt.get_maxdegree();
+    w128_t out_seq[2 * maxdegree];
+
+    for (int i = 0; i < 2 * maxdegree; i++) {
+	out_seq[i] = dsfmt.next();
+    }
+    GF2X minimal;
+    for (int pos = 0; pos < 104; pos++) {
+	calc_minimal(minimal, maxdegree, out_seq, pos);
+	LCM(tmp, lcmpoly, minimal);
+	lcmpoly = tmp;
+    }
+#if defined(DEBUG)
+    cout << "deg(lcmpoly) = " << dec << deg(lcmpoly) << endl;
+#endif
 }
 
 void get_lcm(GF2X& lcmpoly, dSFMText& dsfmt) {
-    GF2X minimal;
-    GF2X tmp;
-    int maxdegree = dsfmt.get_mamaxdegree();
+    int maxdegree = dsfmt.get_maxdegree();
+    //uint32_t time = (uint32_t)clock();
     dsfmt.seeding(1234);
-//    dsfmt.set_high()
-//    dsfmt.seeding(1234, 1);
-    for (int bitpos = 0; bitpos < 52 * 2; bitpos++) {
-	calc_minimal(minimal, dsfmt, bitpos);
-	LCM(tmp, lcmpoly, minimal);
-	lcmpoly = tmp;
-#if defined(DEBUG)
-    cout << "deg(lcm) = " << dec << deg(lcmpoly) << endl;
-#endif
-#if 0
-	if (deg(lcmpoly) == maxdegree) {
-	    return;
-	}
-	if (deg(lcmpoly) > maxdegree) {
-	    return;
-	}
-#endif
+    get_lcm_sub(lcmpoly, dsfmt);
+    if (deg(lcmpoly) >= maxdegree) {
+	return;
     }
-#if defined(DEBUG)
-    cout << "deg(lcm) = " << dec << deg(lcmpoly) << endl;
-#endif
-#if 1
     for(int i = 0; i < maxdegree; i++) {
-	dsfmt.init_basis();
-	for (int bitpos = 0; bitpos < 52 * 2; bitpos++) {
-	    calc_minimal(minimal, dsfmt, bitpos);
-	    LCM(tmp, lcmpoly, minimal);
-	    lcmpoly = tmp;
-#if 0
-	    if (deg(lcmpoly) == maxdegree) {
-		return;
-	    }
-#endif
+	dsfmt.init_basis(i);
+	get_lcm_sub(lcmpoly, dsfmt);
+	if (deg(lcmpoly) >= maxdegree) {
+	    return;
 	}
     }
-#endif
-#if 0
-    cerr << "can't find lcm deg=" << dec << deg(lcmpoly) << endl;
-    cerr << "maxdegree = " << dec << maxdegree << endl;
-    throw new logic_error("can't find lcm");
-#endif
 }
+
 
 static int has_large_irreducible(GF2X& fpoly, int degree) {
     static const GF2X t2(2, 1);
@@ -170,7 +180,7 @@ void check_fix2(dSFMText & fix)
     fix.print(cout);
 }
 
-void calc_fix(GF2X& lcm, int mexp, int pos1, int sl1,
+void calc_fix(GF2X& inv, int mexp, int pos1, int sl1,
 	      uint64_t mask1, uint64_t mask2)
 {
     dSFMText fix(mexp, pos1, sl1, mask1, mask2);
@@ -179,13 +189,17 @@ void calc_fix(GF2X& lcm, int mexp, int pos1, int sl1,
     //cout << "setup0:";
     //fix.print(cout);
     fix.setup_constants();
+#if defined(DEBUG)
     cout << "setup:";
     fix.print(cout);
+#endif
     dSFMText work(mexp, pos1, sl1, mask1, mask2);
+#if defined(DEBUG)
     cout << "zero:";
     work.print(cout);
-    for (int i = 0; i <= deg(lcm); i++) {
-	if (IsOne(coeff(lcm, i))) {
+#endif
+    for (long i = 0; i <= deg(inv); i++) {
+	if (IsOne(coeff(inv, i))) {
 	    work.add(fix);
 #if defined(DEBUG) && 0
     cout << "work:";
@@ -196,26 +210,7 @@ void calc_fix(GF2X& lcm, int mexp, int pos1, int sl1,
     }
     cout << "fix:";
     work.print(cout);
-    check_fix2(work);
-#if 0
-    cout << "* (t+1)" << endl;
-    GF2X t1(1,1);
-    dSFMText work2(mexp, pos1, sl1, mask1, mask2);
-    cout << "work2:";
-    work2.print(cout);
-    for (int i = 0; i <= deg(t1); i++) {
-	if (IsOne(coeff(t1, i))) {
-	    work2.add(work);
-#if defined(DEBUG)
-    cout << "work2:";
-    work2.print(cout);
-#endif
-	}
-	work.next();
-    }
-    cout << "work2:";
-    work2.print(cout);
-#endif
+    check_fix(work);
 }
 
 void check_const(GF2X& lcm, int mexp, int pos1, int sl1,
@@ -243,6 +238,28 @@ void check_const(GF2X& lcm, int mexp, int pos1, int sl1,
     add.print(cout);
 }
 
+void check_gcd(GF2X& d, GF2X& s, GF2X& inv, GF2X& work, GF2X& t1)
+{
+//    XGCD(d, s, inv, work, t1);
+//    check_gcd(d, s, inv, work, t1);
+//void XGCD(GF2X& d, GF2X& s, GF2X& t, const GF2X& a, const GF2X& b);
+// d = gcd(a,b), a s + b t = d
+    if (deg(d) != 0) {
+	cout << "check_gcd d != 1:" << dec << deg(d) << endl;
+	return;
+    }
+    GF2X p;
+    GF2X q;
+    mul(p, s, work);
+    mul(q, inv, t1);
+    p += q;
+    if (p != d) {
+	cout << "check_gcd p != d, p = " << p << endl;
+	cout << "check_gcd p != d, d = " << d << endl;
+    } else {
+	cout << "check_gcd OK d:" << d << endl;
+    }
+}
 int main(int argc, char *argv[]) {
     if (argc < 6) {
 	cout << argv[0] << " mexp pos1 sl1 mask1 mask2" << endl;
@@ -266,7 +283,7 @@ int main(int argc, char *argv[]) {
     get_lcm(characteristic, dsfmt);
 #if defined(DEBUG)
     cout << "degree:" << dec << deg(characteristic) << endl;
-    cerr << "maxdegree = " << dec << dsfmt.get_mamaxdegree() << endl;
+    cout << "maxdegree = " << dec << dsfmt.get_mamaxdegree() << endl;
     cout << characteristic << endl;
 #endif
     GF2X work;
@@ -283,23 +300,29 @@ int main(int argc, char *argv[]) {
     GF2X remain = work / characteristic;
     vec_pair_GF2X_long factors;
     CanZass(factors, remain);
+    cout << "degree of work:" << dec << deg(work) << endl;
+    cout << "degree of remain:" << dec << deg(remain) << endl;
     cout << "=== factor of remain ===" << endl;
     for (int i = 0; i < factors.length(); i++) {
 	cout << factors[i].a;
 	cout << ":";
-	cout << factors[i].b << endl;
+	cout << dec << deg(factors[i].a);
+	cout << ":";
+	cout << dec << factors[i].b << endl;
     }
-    cout << "=== factor of remain ===" << endl;
 #endif
     GF2X d, s, inv;
-    GF2X t1(1,1);
+    GF2X t1;
+    SetCoeff(t1, 0, 1);
+    SetCoeff(t1, 1, 1);
     XGCD(d, s, inv, work, t1);
+    check_gcd(d, s, inv, work, t1);
 // d = gcd(a,b), a s + b t = d
-    MulMod(s, inv, t1, work);
-    if (deg(s) != 0) {
-	cout << "inv is not inv." << endl;
-    }
-
+//    MulMod(s, inv, t1, work);
+#if defined(DEBUG)
+    cout << "deg work:" << dec << deg(work) << endl;
+    cout << "deg inv:" << dec << deg(inv) << endl;
+#endif
     string x;
 //    cout << "# deg = " << dec << deg(work) << endl;
     polytostring(x, work);
@@ -311,6 +334,10 @@ int main(int argc, char *argv[]) {
     cout << dec << endl;
     cout << x << endl;
     cout << dec << flush;
+    if (deg(d) != 0) {
+	cout << "doesn't have fixpoint." << endl;
+	return 0;
+    }
 #if 0
     string y;
     polytostring(y, inv);
@@ -319,7 +346,7 @@ int main(int argc, char *argv[]) {
     } else {
 	cout << "can't finf inv d=" << d << endl;
     }
+#endif
     calc_fix(inv, mexp, pos1, sl1, mask[0], mask[1]);
     //check_const(inv, mexp, pos1, sl1, mask[0], mask[1]);
-#endif
 }
