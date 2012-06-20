@@ -85,10 +85,16 @@ static void get_lcm_sub(GF2X& lcmpoly, dSFMText& dsfmt) {
 	out_seq[i] = dsfmt.next();
     }
     GF2X minimal;
+    GF2X t1;
+    SetCoeff(t1, 0, 1);
+    SetCoeff(t1, 1, 1);
     for (int pos = 0; pos < 104; pos++) {
 	calc_minimal(minimal, maxdegree, out_seq, pos);
 	LCM(tmp, lcmpoly, minimal);
 	lcmpoly = tmp;
+	if (divide(lcmpoly, t1)) {
+	    return;
+	}
     }
 #if defined(DEBUG)
     cout << "deg(lcmpoly) = " << dec << deg(lcmpoly) << endl;
@@ -97,16 +103,26 @@ static void get_lcm_sub(GF2X& lcmpoly, dSFMText& dsfmt) {
 
 void get_lcm(GF2X& lcmpoly, dSFMText& dsfmt) {
     int maxdegree = dsfmt.get_maxdegree();
+    GF2X t1;
+    SetCoeff(t1, 0, 1);
+    SetCoeff(t1, 1, 1);
+
     //uint32_t time = (uint32_t)clock();
     dsfmt.seeding(1234);
     get_lcm_sub(lcmpoly, dsfmt);
     if (deg(lcmpoly) >= maxdegree) {
 	return;
     }
+    if (divide(lcmpoly, t1)) {
+	return;
+    }
     for(int i = 0; i < maxdegree; i++) {
 	dsfmt.init_basis(i);
 	get_lcm_sub(lcmpoly, dsfmt);
 	if (deg(lcmpoly) >= maxdegree) {
+	    return;
+	}
+	if (divide(lcmpoly, t1)) {
 	    return;
 	}
     }

@@ -32,12 +32,12 @@ using namespace std;
 using namespace dsfmt;
 
 static void read_file(GF2X& characteristic, int line_no, const string& file);
-static void test(dsfmt_t * dsfmt, GF2X& poly);
+static int test(dsfmt_t * dsfmt, GF2X& poly);
 static int check(dsfmt_t *a, dsfmt_t *b, int verbose);
 static void print_state(dsfmt_t *a, dsfmt_t * b);
 static void print_state_line(w128_t *a, w128_t *b);
 static void print_sequence(dsfmt_t *a, dsfmt_t * b);
-static void speed(dsfmt_t * dsfmt, GF2X& characteristic);
+static int speed(dsfmt_t * dsfmt, GF2X& characteristic);
 
 int main(int argc, char * argv[]) {
     if (argc <= 1) {
@@ -54,14 +54,13 @@ int main(int argc, char * argv[]) {
     read_file(characteristic, 0, ss_file.str());
     dsfmt_t dsfmt;
     if (argv[1][1] == 's') {
-	speed(&dsfmt, characteristic);
+	return speed(&dsfmt, characteristic);
     } else {
-	test(&dsfmt, characteristic);
+	return test(&dsfmt, characteristic);
     }
-    return 0;
 }
 
-static void speed(dsfmt_t * dsfmt, GF2X& characteristic)
+static int speed(dsfmt_t * dsfmt, GF2X& characteristic)
 {
     uint32_t seed = 1234;
     long step = 10000;
@@ -113,6 +112,7 @@ static void speed(dsfmt_t * dsfmt, GF2X& characteristic)
 	test_count *= 100;
 	exp += 2;
     }
+    return 0;
 }
 
 static void read_file(GF2X& characteristic, int line_no, const string& file)
@@ -205,7 +205,7 @@ static void print_sequence(dsfmt_t *a, dsfmt_t * b)
     }
 }
 
-static void test(dsfmt_t * dsfmt, GF2X& characteristic)
+static int test(dsfmt_t * dsfmt, GF2X& characteristic)
 {
     dsfmt_t new_dsfmt_z;
     dsfmt_t * new_dsfmt = &new_dsfmt_z;
@@ -247,7 +247,7 @@ static void test(dsfmt_t * dsfmt, GF2X& characteristic)
 	print_state(new_dsfmt, dsfmt);
 #endif
 	if (check(new_dsfmt, dsfmt, 1)) {
-	    return;
+	    return 1;
 	}
     }
     dsfmt_t rnd;
@@ -265,7 +265,8 @@ static void test(dsfmt_t * dsfmt, GF2X& characteristic)
 	    cout << "mexp " << dec << DSFMT_MEXP << " jump "
 		 << test_count << " steps ";
 	    cout << "check NG!" << endl;
-	    return;
+	    return 1;
 	}
     }
+    return 0;
 }
