@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file SFMT-common.h
+ * @file dSFMT-common.h
  *
  * @brief SIMD oriented Fast Mersenne Twister(SFMT) pseudorandom
  * number generator with jump function. This file includes common functions

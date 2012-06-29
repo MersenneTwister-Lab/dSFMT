@@ -25,7 +25,7 @@ namespace dsfmt {
 /**
  * converts polynomial to string for convenient use in C language.
  * @param x output string
- * @param polynomial
+ * @param polynomial input polynomial
  */
     static inline void polytostring(std::string& x, NTL::GF2X& polynomial)
     {

@@ -1,6 +1,5 @@
 ver 2.2.0
 -------
-Add jump function.
 move do_recursion to dSFMT-common.h
 
 ver 2.1.1

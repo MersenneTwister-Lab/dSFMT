@@ -104,7 +104,7 @@ extern "C" {
 
 /**
  * calculate next state
- * @param sfmt SFMT internal state
+ * @param dsfmt dSFMT internal state
  */
     inline static void next_state(dsfmt_t * dsfmt) {
 	int idx = (dsfmt->idx / 2) % DSFMT_N;

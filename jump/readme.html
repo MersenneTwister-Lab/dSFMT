@@ -7,7 +7,8 @@
     <meta http-equiv="Content-Type" content="text/html" />
     <title>dSFMT jump function</title>
     <style type="text/css">
-      BLOCKQUOTE {background-color:#a0ffa0;
+      BODY {margin-left: 2%}
+      BLOCKQUOTE {background-color:#e0ffe0;
                   padding-left: 1em;}
       div.math {padding-left:2em;}
     </style>
@@ -30,7 +31,7 @@
     </p>
 
     <h3>Calculations of jump polynomial</h3>
-
+    <!--
     <p>From the characteristic polynomial <b>ϕ</b> of a linear random number
     generator and an integer <b>N</b>, we can get jump polynomial <b>ψ</b><p/>
       <div class="math">
@@ -64,33 +65,32 @@
       jump will consume more time.
       These cases are MEXP = 2203, 11213, 19937, 44497, 86243 and 132049.
     </p>
-
-    <p>The characteristic polynomial of dSFMT of MEXP is stored in
-      'lcm.MEXP.txt' files.
-    </p>
-
-    <p>
+    -->
+    <p>To calculate jump polynomial, we use magic polynomials, that is
+      polynomial version of magic number, for MEXPs. (We omit explanation of
+      the polynomial.) These magic polynomial are stored in
+      'magic.{MEXP}.txt files.<br/>
       The executable binary file 'calc-jump' calculates jump polynomial
       from command line. Here is a usage:
     </p>
       <blockquote>
 	<pre>
-./calc-jump jump-step lcm-file
+./calc-jump jump-step magic-file
     jump-step: a number between zero and 2^{DSFMT_MEXP}-1.
                large decimal number is allowed.
-    lcm-file: one of lcm.{MEXP}.txt file
+    magic-file: one of magic.{MEXP}.txt file
 </pre>
       </blockquote>
     <p>
       Users can call C++ function 'dsfmt::calc_jump' in C++ header file
       'dSFMT-calc-jump.hpp' to calculate jump polynomials.
-    </p>
-    <p><a href="http://shoup.net/ntl/">NTL: A Library for doing Number
+      <br/>
+      <a href="http://shoup.net/ntl/">NTL: A Library for doing Number
     Theory</a> by Victor Shoup is used for polynomial calculation and
     handling large integers.
-    </p>
-    <p>This step does not use dSFMT internal state and independent
-      from MEXPs except file names of characteristic polynomials.
+      <br/>
+      This step does not use dSFMT internal state and independent
+      from MEXPs except file names of magic polynomials.
     </p>
 
     <h3>Changing internal state of dSFMT to jumped state.</h3>
@@ -111,16 +111,15 @@
 	  internal states can be calculated using exclusive or.
     </p>
 -->
-    <p>This step depends on MEXPs of dSFMT, and the characteristic
+    <p>This step depends on MEXPs of dSFMT, and the magic
       polynomial of dSFMT should be the same as one used for the jump
       polynomial calculation.
-    </p>
-    <p>The function dSFMT-jump written in C language does this step.
+      <br/>
+      The function dSFMT-jump written in C language does this step.
     </p>
 
     <h3>Compile and test</h3>
-    <p><a href="http://shoup.net/ntl/">NTL: A Library for doing Number
-    Theory</a> by Victor Shoup is required for compile. If you
+    <p><a href="http://shoup.net/ntl/">NTL</a> is required for compile. If you
       installed NTL with gmp or gf2x, you will need to change Makefile.
     </p>
     <blockquote>
@@ -165,9 +164,10 @@ mexp 19937 jump 10^22 steps dSFMT_jump: 3.592ms
     a sub-sequence using parallel computing.
     </p>
     <p>
-      Here is a sample of generating a sequence using 5 dSFMT instances.
-      This sample is included in dSFMT-jump archive.
-      <a href="sample.c">sample.c</a>
+      Here is a sample of generating a sequence using 5 dSFMT instances:
+      <a href="sample2.c">sample2.c</a>.<br/>
+      <a href="sample1.c">sample1.c</a> shows more simple, far away
+      sub-sequence generation.
     </p>
 
     <h3>License</h3>

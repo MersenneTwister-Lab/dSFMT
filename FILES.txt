@@ -6,6 +6,7 @@ CHANGE-LOG.txt		change log.
 LICENSE.txt:		License file.
 Makefile:		Makefile for test programs.
 dSFMT.h:		Header file.
+dSFMT-common.h:		Header file.
 dSFMT-params.h:		parameter file control for various Mersenne expornent
 dSFMT-params521.h:	parameters for period of 2^{521}-1
 dSFMT-params1279.h:	parameters for period of 2^{1279}-1
