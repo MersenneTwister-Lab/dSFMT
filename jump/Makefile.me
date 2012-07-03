@@ -21,18 +21,19 @@ FILES = FILES.txt \
 	dSFMT-calc-jump.hpp \
 	calc-jump.cpp \
 	test-jump.cpp \
+	check-jump.sh \
 	sample1.c \
 	sample2.c \
-	magic.521.txt \
-	magic.1279.txt \
-	magic.2203.txt \
-	magic.4253.txt \
-	magic.11213.txt \
-	magic.19937.txt \
-	magic.44497.txt \
-	magic.86243.txt \
-	magic.132049.txt \
-	magic.216091.txt \
+	poly.521.txt \
+	poly.1279.txt \
+	poly.2203.txt \
+	poly.4253.txt \
+	poly.11213.txt \
+	poly.19937.txt \
+	poly.44497.txt \
+	poly.86243.txt \
+	poly.132049.txt \
+	poly.216091.txt \
 	html
 
 VERSION = 0.1
@@ -55,7 +56,7 @@ zip: $(FILES)
 	mkdir ${DIR}
 	mkdir ${DIR}/jump
 	cp -r ${FILES} ${DIR}/jump
-	zip ${DIR}.zip ${DIR}/* ${DIR}/html/*
+	zip -r ${DIR}.zip ${DIR}/*
 	rm -rf ${DIR}
 
 calc-characteristic: calc-characteristic.cpp dSFMText.hpp
