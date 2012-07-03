@@ -34,10 +34,10 @@ static void read_file(GF2X& lcmpoly, long line_no, const string& file);
 
 int main(int argc, char * argv[]) {
     if (argc <= 2) {
-	cout << argv[0] << " jump-step lcm-file" << endl;
+	cout << argv[0] << " jump-step poly-file" << endl;
 	cout << "    jump-step: a number between zero and 2^{DSFMT_MEXP}-1.\n"
 	     << "               large decimal number is allowed." << endl;
-	cout << "    lcm-file: one of lcm.{MEXP}.txt "
+	cout << "    poly-file: one of poly.{MEXP}.txt "
 	     << "file" << endl;
 	return -1;
     }

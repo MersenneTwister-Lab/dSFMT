@@ -32,9 +32,9 @@ test-jump-M86243 test-jump-M132049 test-jump-M216091
 #
 # jump
 #
-all:calc-jump jump-check
+all:calc-jump
 
-jump-check: ${ALL_JUMP_TARGET}
+check: ${ALL_JUMP_TARGET}
 	./check-jump.sh
 
 calc-jump:calc-jump.cpp dSFMT-calc-jump.hpp

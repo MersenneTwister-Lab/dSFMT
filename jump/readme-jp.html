@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>dSFMT jump function</title>
+    <style type="text/css">
+      BODY {margin-left: 1%}
+      BLOCKQUOTE {background-color:#e0ffe0;
+                  padding-left: 1em;}
+      div.math {padding-left:2em;
+                font-weight:bold}
+    </style>
+  </head>
+  <body>
+    <h2>目次</h2>
+    <ul>
+      <li><a href="#jump">dSFMTジャンプ機能について</a></li>
+      <ul>
+	<li><a href="#calculation">ステップ1:ジャンプ多項式の計算</a></li>
+	<li><a href="#execution">
+	    ステップ2:dSFMTの内部状態をジャンプ後の状態に変更する</a></li>
+      </ul>
+      <li><a href="#compile">インストール、コンパイル、テスト</a></li>
+      <li><a href="#sample">並列生成サンプル</a></li>
+      <li><a href="#license">ライセンス</a></li>
+    </ul>
+
+    <h2><a id="jump">dSFMT ジャンプ機能について</a></h2>
+
+    <p>
+      ジャンプ機能を使うと、dSFMTのある内部状態からNステップ後の状態を計算することが
+      出来ます。これはdSFMTの乱数生成を2N回呼び出すのと同じことですが、
+      Nが大きい場合、乱数生成よりずっと速くNステップ後の状態に移ることができます。
+      ジャンプ機能の典型的な使用法は、dSFMTによって生成される（長い）周期の中で、
+      互いに重ならないという保証のある複数の部分列を取得することです。
+    </p>
+    <p>
+      ジャンプを実行するには二つのステップがあります。ジャンプ多項式の計算と内部状態の
+      変更です。
+    </p>
+
+    <h3><a id="calculation">ステップ1:ジャンプ多項式の計算</a></h3>
+    <p>
+      ジャンプ多項式を計算するために、計算済みの多項式を使用します。
+      計算済みの多項式は poly.{DSFMT_MEXP}.txtファイルに
+      保存されています。（この多項式についての説明は省略します）
+      <br/>
+      make によって作られる実行可能ファイル 'calc-jump'を使って、
+      コマンドラインからジャンプ多項式を計算することができます。
+      使用法は以下のとおりです。
+    </p>
+      <blockquote>
+	<pre>
+./calc-jump jump-step polynomial-file
+    jump-step: a number between zero and 2^{DSFMT_MEXP}-1.
+               large decimal number is allowed.
+    polynomial-file: one of poly.{DSFMT_MEXP}.txt file
+</pre>
+      </blockquote>
+      <p>
+	jump-stepは十進数で指定してください。大きな数を指定することが出来ます。
+	no. は、params ディレクトリにある poly.{DSFMT_MEXP}.txt
+	ファイルを使用する時に、指定してください。
+	<br/>
+	C++ の関数 'dsfmt::calc_jump' を使ってジャンプ多項式を計算することも
+	できます。この関数は 'dSFMT-calc-jump.hpp' ファイルの中で定義されています。
+      </p>
+    <p>ジャンプ多項式の計算にはVictor Shoup教授の
+      <a href="http://shoup.net/ntl/">NTL: A Library for doing Number
+	Theory</a> が必要です。
+    <br/>
+    また、ジャンプ多項式の計算にはdSFMTの内部状態は必要ありませんし、
+    計算済み多項式の格納されたファイル名以外はメルセンヌ指数にも依存しません。
+    </p>
+
+    <h3><a id="execution">ステップ2:dSFMTの内部状態をジャンプ後の状態に変更する</a></h3>
+
+    <p>
+      このステップは、dSFMTのメルセンヌ指数に依存します。
+      ジャンプ多項式の計算に使用した計算済み多項式に対応するメルセンヌ指数を
+      必ず使用してください。
+    <br/>
+      C言語で書かれたdSFMT_jump関数がこのステップを実行します。
+      この関数は、dSFMT-jump.hの中で宣言されています。
+      この関数のコンパイルには、dSFMT バージョン2.2 が必要です。
+    </p>
+
+    <h2><a id="compile">インストール、コンパイル、テスト</a></h2>
+    </p>
+    <p>
+      Jump プログラムは単独ではコンパイルできません。dSFMT 2.2 のソースファイルが
+      必要です。</p>
+    <ol>
+      <li><a href="http://shoup.net/ntl/">NTL</a>をインストールしていなければ
+	インストールする。</li>
+      <li>アーカイブファイルを解凍します。</li>
+      <li>出来たディレクトリ(dSFMTJump-src-xxx)の中のjumpディレクトリを
+	dSFMTのディクレクトリにコピーします。</li>
+<pre>
+dSFMT-src-2.2
+   +---html
+   +---jump
+</pre>
+      <li>コピーしたjumpディレクトリにcd します。</li>
+      <li>NTLのインストール時にgmp か gf2x を使用した場合は、Makefile の
+	以下の行のどちらかのコメントを外す必要があります。</li>
+<pre>
+#LIBGF2X = -lgf2x
+#LIBGMP = -lgmp
+</pre>
+      <li>make を実行します</li>
+    <blockquote>
+<pre>
+make all
+make check
+</pre>
+    </blockquote>
+      <li>make check の結果 OK と表示されればテストは成功です</li>
+    </ol>
+    <p>make check で作られた test-jump-MXXX ファイルは、-s
+      を指定して実行するとジャンプ多項式の計算時間とジャンプの実行時間を表示します。
+    </p>
+    <blockquote>
+<pre>
+$ ./test-jump-M19937 -s
+mexp 19937 jump 10^04 steps  calc_jump: 0.707ms
+mexp 19937 jump 10^04 steps dSFMT_jump: 0.166ms
+mexp 19937 jump 10^06 steps  calc_jump: 3.527ms
+mexp 19937 jump 10^06 steps dSFMT_jump: 3.657ms
+mexp 19937 jump 10^08 steps  calc_jump: 6.310ms
+mexp 19937 jump 10^08 steps dSFMT_jump: 3.628ms
+mexp 19937 jump 10^10 steps  calc_jump: 9.221ms
+mexp 19937 jump 10^10 steps dSFMT_jump: 3.579ms
+mexp 19937 jump 10^12 steps  calc_jump:12.175ms
+mexp 19937 jump 10^12 steps dSFMT_jump: 3.638ms
+mexp 19937 jump 10^14 steps  calc_jump:15.176ms
+mexp 19937 jump 10^14 steps dSFMT_jump: 3.630ms
+mexp 19937 jump 10^16 steps  calc_jump:18.064ms
+mexp 19937 jump 10^16 steps dSFMT_jump: 3.626ms
+mexp 19937 jump 10^18 steps  calc_jump:20.959ms
+mexp 19937 jump 10^18 steps dSFMT_jump: 3.606ms
+mexp 19937 jump 10^20 steps  calc_jump:23.884ms
+mexp 19937 jump 10^20 steps dSFMT_jump: 3.600ms
+mexp 19937 jump 10^22 steps  calc_jump:26.920ms
+mexp 19937 jump 10^22 steps dSFMT_jump: 3.592ms
+</pre>
+    </blockquote>
+
+    <h2><a id="sample">並列生成サンプル</a></h2>
+    <p>
+      アーカイブに同梱されている <a href="sample1.c">sample1.c</a>ファイルは、
+      dSFMT1279を使って、10<sup>20</sup>
+      ステップのジャンプをすることによって、重なりのないことが保証された部分列を5個生成
+      しています。5個のdSFMTが10<sup>20</sup>以下の疑似乱数を生成する限り、
+      部分列が重なることはありません。
+    </p>
+    <p>
+      大きめのジャンプステップを指定して、重なりのない部分列を生成することが
+      ジャンプ機能の重要な目的ですが、
+      ジャンプ機能を使って、並列にひとつながりの疑似乱数列を生成することも出来ます。
+      <a href="sample2.c">sample2.c</a>では5個のdSFMT521を使用して
+      ひとつながりの疑似乱数列を生成し、
+      ひとつのdSFMT521で順次生成した疑似乱数列と比較しています。
+      <br/>
+      このサンプルでは、順次生成と比較するために、小さなジャンプステップを使って
+      いますが、実際にひとつながりの疑似乱数列を並列生成するなら、もっと大きな
+      ジャンプステップを使用することになるはずです。
+    </p>
+
+    <h2><a id="license">ライセンス</a></h2>
+    <p>
+      dSFMT-jump は dSFMT と同様に商用にも利用することができます。<br/>
+      詳細は<a href="LICENSE.txt">LICENSE.txt</a> を参照してください。
+    </p>
+  </body>
+</html>

@@ -44,7 +44,7 @@ int main(int argc, char * argv[]) {
 	printf("%s -s|-c [prefix]\n", argv[0]);
 	return -1;
     }
-    string prefix = "magic.";
+    string prefix = "poly.";
     if (argc >= 3) {
 	prefix = argv[2];
     }
