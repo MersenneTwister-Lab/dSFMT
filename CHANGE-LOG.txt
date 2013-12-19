@@ -1,3 +1,7 @@
+ver 2.2.3
+-------
+change Makefile for nmake
+
 ver 2.2.2
 -------
 fix MSC 2012 compile error.
