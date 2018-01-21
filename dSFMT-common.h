@@ -37,6 +37,21 @@ union X128D_T {
 static const union X128I_T sse2_param_mask = {{DSFMT_MSK1, DSFMT_MSK2}};
 #endif
 
+#if defined(__aarch64__) && defined(HAVE_NEON)
+#include <arm_neon.h>
+union X128I_T {
+    uint64_t u[2];
+    uint64x2_t i128;
+};
+union X128D_T {
+    double d[2];
+    float64x2_t d128;
+};
+/** mask data for NEON */
+static const union X128I_T neon_param_mask = {{DSFMT_MSK1, DSFMT_MSK2}};
+#endif
+
+
 #if defined(HAVE_ALTIVEC)
 inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
 				w128_t *lung) {
@@ -87,6 +102,29 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     w = _mm_and_si128(y, sse2_param_mask.i128);
     v = _mm_xor_si128(v, x);
     v = _mm_xor_si128(v, w);
+    r->si = v;
+    u->si = y;
+}
+#elif defined(__aarch64__) && defined(HAVE_NEON)
+/**
+ * This function represents the recursion formula.
+ * @param r output 128-bit
+ * @param a a 128-bit part of the internal state array
+ * @param b a 128-bit part of the internal state array
+ * @param d a 128-bit part of the internal state array (I/O)
+ */
+inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
+    uint64x2_t v, w, x, y, z;
+    x = a->si;
+    z = vshlq_n_u64(x, DSFMT_SL1);
+    y = vextq_u64(u->si, u->si, 1);
+    y = vreinterpretq_u64_u32(vrev64q_u32(vreinterpretq_u32_u64(y)));    
+    z = veorq_u64(z, b->si);
+    y = veorq_u64(y, z);
+    v = vshrq_n_u64(y, DSFMT_SR);
+    w = vandq_u64(y, neon_param_mask.i128);
+    v = veorq_u64(v, x);
+    v = veorq_u64(v, w);
     r->si = v;
     u->si = y;
 }
