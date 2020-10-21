@@ -1,0 +1,4 @@
+*.dylib
+*.a
+*.so
+test-*
