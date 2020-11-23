@@ -1,3 +1,7 @@
+ver 2.2.4 2020-11-10
+-------
+add #include stddef.h, change size_t to ptrdiff_t.
+
 ver 2.2.3
 -------
 change Makefile for nmake

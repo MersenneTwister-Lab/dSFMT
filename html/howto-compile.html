@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE html 
+<!DOCTYPE html
   PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -82,8 +82,8 @@ diff -w foo.txt dSFMT.19937.out.txt</pre>
     <p>
       If you are using gcc 4.0, you will get more performance of dSFMT
       by giving additional options
-      <strong>--param max-inline-insns-single=1800</strong>, 
-      <strong>--param inline-unit-growth=500</strong> and 
+      <strong>--param max-inline-insns-single=1800</strong>,
+      <strong>--param inline-unit-growth=500</strong> and
       <strong>--param large-function-growth=900</strong>.
     </p>
 
@@ -187,7 +187,7 @@ int main(int argc, char* argv[]) {
 }
       </pre>
     </blockquote>
-    <p>To compile <strong>sample1.c</strong> with dSFMT.c with the period of 
+    <p>To compile <strong>sample1.c</strong> with dSFMT.c with the period of
       2<sup>607</sup>, type</p>
     <blockquote>
       <pre>gcc -DDSFMT_MEXP=521 -o sample1 dSFMT.c sample1.c</pre>
@@ -197,7 +197,7 @@ int main(int argc, char* argv[]) {
     <blockquote>
       <pre>gcc -msse2 -DDSFMT_MEXP=521 -DHAVE_SSE2 -o sample1 dSFMT.c sample1.c</pre>
     </blockquote>
-    <p>If your Computer is Apple PowerPC G4 or G5 and you want to use 
+    <p>If your Computer is Apple PowerPC G4 or G5 and you want to use
       optimized dSFMT for AltiVec, type</p>
     <blockquote>
       <pre>gcc -faltivec -DDSFMT_MEXP=521 -DHAVE_ALTIVEC -o sample1 dSFMT.c sample1.c</pre>
@@ -293,7 +293,7 @@ int main(int argc, char* argv[]) {
     <blockquote>
       <pre>gcc -msse2 -DDSFMT_MEXP=2203 -DHAVE_SSE2 -o sample2 dSFMT.c sample2.c</pre>
     </blockquote>
-    <p>If your computer is Apple PowerPC G4 or G5 and you want to use 
+    <p>If your computer is Apple PowerPC G4 or G5 and you want to use
       optimized dSFMT for AltiVec, type</p>
     <blockquote>
       <pre>gcc -faltivec -DDSFMT_MEXP=2203 -DHAVE_ALTIVEC -o sample2 dSFMT.c sample2.c</pre>
@@ -356,5 +356,18 @@ int main(int argc, char* argv[]) {
     <blockquote>
       <pre>./sample3 your-full-name</pre>
     </blockquote>
+
+
+    <h3>3. Building a shared library</h3>
+
+    Pass <strong>-DDSFMT_SHLIB</strong> to gcc along with the usual flags necessary to build a shared library. It is recommended that the <strong>-DDSFMT_DO_NOT_USE_OLD_NAMES</strong> flag also be used when building a shared library, so that the generated functions have names with the <strong>dsfmt</strong> prefix. Here's an example invocation for building a shared library on linux.
+
+    <blockquote>
+      <pre>gcc -O3 -finline-functions -fomit-frame-pointer -DNDEBUG -fno-strict-aliasing \
+-Wmissing-prototypes -Wall  -std=c99 -DDSFMT_MEXP=19937 \
+-DDSFMT_SHLIB DSFMT_DO_NOT_USE_OLD_NAMES -shared -fPIC dSFMT.c -o libdSFMT.so</pre>
+    </blockquote>
+
+
   </body>
 </html>

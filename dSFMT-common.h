@@ -13,6 +13,7 @@
  * University.
  * Copyright (C) 2012 Mutsuo Saito, Makoto Matsumoto, Hiroshima
  * University and The University of Tokyo.
+ * Copyright (C) 2018, 2020 Masaki Ota. All rights reserved.
  * All rights reserved.
  *
  * The 3-clause BSD License is applied to this software, see

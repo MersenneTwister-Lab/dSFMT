@@ -5,10 +5,12 @@
  *
  * @author Mutsuo Saito (Hiroshima University)
  * @author Makoto Matsumoto (Hiroshima University)
+ * @author Masaki Ota
  *
  * Copyright (C) 2007,2008 Mutsuo Saito, Makoto Matsumoto and Hiroshima
  * University. All rights reserved.
- *
+ * Copyright (C) 2018, 2020 Masaki Ota. All rights reserved.
+ * 
  * The new BSD License is applied to this software, see LICENSE.txt
  */
 #include <stdio.h>
@@ -32,24 +34,31 @@ static const int dsfmt_mexp = DSFMT_MEXP;
 inline static uint32_t ini_func1(uint32_t x);
 inline static uint32_t ini_func2(uint32_t x);
 inline static void gen_rand_array_c1o2(dsfmt_t *dsfmt, w128_t *array,
-				       int size);
+				       ptrdiff_t size);
 inline static void gen_rand_array_c0o1(dsfmt_t *dsfmt, w128_t *array,
-				       int size);
+				       ptrdiff_t size);
 inline static void gen_rand_array_o0c1(dsfmt_t *dsfmt, w128_t *array,
-				       int size);
+				       ptrdiff_t size);
 inline static void gen_rand_array_o0o1(dsfmt_t *dsfmt, w128_t *array,
-				       int size);
+				       ptrdiff_t size);
 inline static int idxof(int i);
 static void initial_mask(dsfmt_t *dsfmt);
 static void period_certification(dsfmt_t *dsfmt);
 
-#if defined(HAVE_SSE2)
+#if defined(HAVE_SSE2)  
 /** 1 in 64bit for sse2 */
 static const union X128I_T sse2_int_one = {{1, 1}};
 /** 2.0 double for sse2 */
 static const union X128D_T sse2_double_two = {{2.0, 2.0}};
 /** -1.0 double for sse2 */
 static const union X128D_T sse2_double_m_one = {{-1.0, -1.0}};
+#elif defined(__aarch64__) && defined(HAVE_NEON)  
+/** 1 in 64bit for aarch64 NEON */
+static const uint64x2_t neon_int_one = {1, 1};
+/** 2.0 double for aarch64 NEON */
+static const float64x2_t neon_double_two = {2.0, 2.0};
+/** -1.0 double for aarch64 NEON */
+static const float64x2_t neon_double_m_one = {-1.0, -1.0};
 #endif
 
 /**
@@ -97,6 +106,39 @@ inline static void convert_o0o1(w128_t *w) {
     w->si = _mm_or_si128(w->si, sse2_int_one.i128);
     w->sd = _mm_add_pd(w->sd, sse2_double_m_one.d128);
 }
+
+#elif defined(__aarch64__) && defined(HAVE_NEON)
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128-bit structure of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1(w128_t *w) {
+    w->sd = vaddq_f64(w->sd, neon_double_m_one);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128-bit structure of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1(w128_t *w) {
+    w->sd = vsubq_f64(neon_double_two, w->sd);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1(w128_t *w) {
+    w->si = vorrq_u64(w->si, neon_int_one);
+    w->sd = vaddq_f64(w->sd, neon_double_m_one);
+}
+
 #else /* standard C and altivec */
 /**
  * This function converts the double precision floating point numbers which
@@ -142,8 +184,8 @@ inline static void convert_o0o1(w128_t *w) {
  * @param size number of 128-bit pseudorandom numbers to be generated.
  */
 inline static void gen_rand_array_c1o2(dsfmt_t *dsfmt, w128_t *array,
-				       int size) {
-    int i, j;
+				       ptrdiff_t size) {
+    ptrdiff_t i, j;
     w128_t lung;
 
     lung = dsfmt->status[DSFMT_N];
@@ -180,8 +222,8 @@ inline static void gen_rand_array_c1o2(dsfmt_t *dsfmt, w128_t *array,
  * @param size number of 128-bit pseudorandom numbers to be generated.
  */
 inline static void gen_rand_array_c0o1(dsfmt_t *dsfmt, w128_t *array,
-				       int size) {
-    int i, j;
+				       ptrdiff_t size) {
+    ptrdiff_t i, j;
     w128_t lung;
 
     lung = dsfmt->status[DSFMT_N];
@@ -223,8 +265,8 @@ inline static void gen_rand_array_c0o1(dsfmt_t *dsfmt, w128_t *array,
  * @param size number of 128-bit pseudorandom numbers to be generated.
  */
 inline static void gen_rand_array_o0o1(dsfmt_t *dsfmt, w128_t *array,
-				       int size) {
-    int i, j;
+				       ptrdiff_t size) {
+    ptrdiff_t i, j;
     w128_t lung;
 
     lung = dsfmt->status[DSFMT_N];
@@ -266,8 +308,8 @@ inline static void gen_rand_array_o0o1(dsfmt_t *dsfmt, w128_t *array,
  * @param size number of 128-bit pseudorandom numbers to be generated.
  */
 inline static void gen_rand_array_o0c1(dsfmt_t *dsfmt, w128_t *array,
-				       int size) {
-    int i, j;
+				       ptrdiff_t size) {
+    ptrdiff_t i, j;
     w128_t lung;
 
     lung = dsfmt->status[DSFMT_N];
@@ -453,7 +495,7 @@ void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
  * memory. Mac OSX doesn't have these functions, but \b malloc of OSX
  * returns the pointer to the aligned memory block.
  */
-void dsfmt_fill_array_close1_open2(dsfmt_t *dsfmt, double array[], int size) {
+void dsfmt_fill_array_close1_open2(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
     gen_rand_array_c1o2(dsfmt, (w128_t *)array, size / 2);
@@ -471,7 +513,7 @@ void dsfmt_fill_array_close1_open2(dsfmt_t *dsfmt, double array[], int size) {
  * @param size the number of pseudorandom numbers to be generated.
  * see also \sa fill_array_close1_open2()
  */
-void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], int size) {
+void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
     gen_rand_array_o0c1(dsfmt, (w128_t *)array, size / 2);
@@ -489,7 +531,7 @@ void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], int size) {
  * @param size the number of pseudorandom numbers to be generated.
  * see also \sa fill_array_close1_open2()
  */
-void dsfmt_fill_array_close_open(dsfmt_t *dsfmt, double array[], int size) {
+void dsfmt_fill_array_close_open(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
     gen_rand_array_c0o1(dsfmt, (w128_t *)array, size / 2);
@@ -507,7 +549,7 @@ void dsfmt_fill_array_close_open(dsfmt_t *dsfmt, double array[], int size) {
  * @param size the number of pseudorandom numbers to be generated.
  * see also \sa fill_array_close1_open2()
  */
-void dsfmt_fill_array_open_open(dsfmt_t *dsfmt, double array[], int size) {
+void dsfmt_fill_array_open_open(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
     gen_rand_array_o0o1(dsfmt, (w128_t *)array, size / 2);
