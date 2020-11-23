@@ -5,10 +5,12 @@
  *
  * @author Mutsuo Saito (Hiroshima University)
  * @author Makoto Matsumoto (Hiroshima University)
+ * @author Masaki Ota
  *
  * Copyright (C) 2007,2008 Mutsuo Saito, Makoto Matsumoto and Hiroshima
  * University. All rights reserved.
- *
+ * Copyright (C) 2018, 2020 Masaki Ota. All rights reserved.
+ * 
  * The new BSD License is applied to this software, see LICENSE.txt
  */
 #include <stdio.h>
@@ -43,13 +45,20 @@ inline static int idxof(int i);
 static void initial_mask(dsfmt_t *dsfmt);
 static void period_certification(dsfmt_t *dsfmt);
 
-#if defined(HAVE_SSE2)
+#if defined(HAVE_SSE2)  
 /** 1 in 64bit for sse2 */
 static const union X128I_T sse2_int_one = {{1, 1}};
 /** 2.0 double for sse2 */
 static const union X128D_T sse2_double_two = {{2.0, 2.0}};
 /** -1.0 double for sse2 */
 static const union X128D_T sse2_double_m_one = {{-1.0, -1.0}};
+#elif defined(__aarch64__) && defined(HAVE_NEON)  
+/** 1 in 64bit for aarch64 NEON */
+static const uint64x2_t neon_int_one = {1, 1};
+/** 2.0 double for aarch64 NEON */
+static const float64x2_t neon_double_two = {2.0, 2.0};
+/** -1.0 double for aarch64 NEON */
+static const float64x2_t neon_double_m_one = {-1.0, -1.0};
 #endif
 
 /**
@@ -97,6 +106,39 @@ inline static void convert_o0o1(w128_t *w) {
     w->si = _mm_or_si128(w->si, sse2_int_one.i128);
     w->sd = _mm_add_pd(w->sd, sse2_double_m_one.d128);
 }
+
+#elif defined(__aarch64__) && defined(HAVE_NEON)
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128-bit structure of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1(w128_t *w) {
+    w->sd = vaddq_f64(w->sd, neon_double_m_one);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128-bit structure of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1(w128_t *w) {
+    w->sd = vsubq_f64(neon_double_two, w->sd);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1(w128_t *w) {
+    w->si = vorrq_u64(w->si, neon_int_one);
+    w->sd = vaddq_f64(w->sd, neon_double_m_one);
+}
+
 #else /* standard C and altivec */
 /**
  * This function converts the double precision floating point numbers which
