@@ -143,7 +143,7 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
  * This function represents the recursion formula.
  * @param r output 128-bit
  * @param a a 128-bit part of the internal state array
- * @param b a 128-bit part of the internal state arraymeka
+ * @param b a 128-bit part of the internal state array
  * @param lung a 128-bit part of the internal state array (I/O)
  */
 inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
