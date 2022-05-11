@@ -25,6 +25,9 @@
 
 #if defined(HAVE_SSE2)
 #  include <emmintrin.h>
+#if defined(__AVX__)
+#  include <immintrin.h>
+#endif
 union X128I_T {
     uint64_t u[2];
     __m128i  i128;
@@ -80,16 +83,61 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     x = a->si;
     z = _mm_slli_epi64(x, DSFMT_SL1);
     y = _mm_shuffle_epi32(u->si, SSE2_SHUFF);
+#if defined(__AVX512VL__)
+    y = _mm_ternarylogic_epi32(y, z, b->si, 0x96);
+#else
     z = _mm_xor_si128(z, b->si);
     y = _mm_xor_si128(y, z);
-
+#endif
     v = _mm_srli_epi64(y, DSFMT_SR);
     w = _mm_and_si128(y, sse2_param_mask.i128);
+#if defined(__AVX512VL__)
+    v = _mm_ternarylogic_epi32(v, x, w, 0x96);
+#else
     v = _mm_xor_si128(v, x);
     v = _mm_xor_si128(v, w);
+#endif
     r->si = v;
     u->si = y;
 }
+
+#elif defined(__aarch64__) && defined(HAVE_NEON)
+#include <arm_neon.h>
+ /**
+ * This function represents the recursion formula.
+ * @param r output 128-bit
+ * @param a a 128-bit part of the internal state array
+ * @param b a 128-bit part of the internal state array
+ * @param d a 128-bit part of the internal state array (I/O)
+ */
+inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
+
+    uint64x2_t v, w, x, y, z;
+    
+    uint8x16_t index = {12,13,14,15, 8,9,10,11, 4,5,6,7, 0,1,2,3};
+    uint64x2_t MSK = {DSFMT_MSK1, DSFMT_MSK2};
+
+    x = a->vqi64;
+    z = vshlq_n_u64(x, DSFMT_SL1);
+    y = vreinterpretq_u64_u8( vqtbl1q_u8(u->vqi8, index) );
+#if defined(__ARM_FEATURE_SHA3)
+    y = veor3q_u64(y, z, b->vqi64);
+#else 
+    z = veorq_u64(z, b->vqi64);
+    y = veorq_u64(y, z);
+#endif
+    u->vqi64 = y;
+    v = vshrq_n_u64(y, DSFMT_SR);
+    w = vandq_u64(y, MSK);
+#if defined(__ARM_FEATURE_SHA3)
+    v = veor3q_u64(v, x, w);
+#else
+    v = veorq_u64(v, x);
+    v = veorq_u64(v, w);
+#endif
+    r->vqi64 = v;
+}
+
 #else
 /**
  * This function represents the recursion formula.

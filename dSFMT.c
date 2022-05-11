@@ -97,6 +97,39 @@ inline static void convert_o0o1(w128_t *w) {
     w->si = _mm_or_si128(w->si, sse2_int_one.i128);
     w->sd = _mm_add_pd(w->sd, sse2_double_m_one.d128);
 }
+#elif defined(HAVE_NEON)
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1(w128_t *w) {
+    w->vqf64 = vaddq_f64(w->vqf64, (float64x2_t){-1.0, -1.0});
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1(w128_t *w) {
+    w->vqf64 = vsubq_f64((float64x2_t){2.0, 2.0}, w->vqf64);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1(w128_t *w) {
+    w->vqi64 = vorrq_u64(w->vqi64, (uint64x2_t){1,1});
+    w->vqf64 = vaddq_f64(w->vqf64, (float64x2_t){-1.0, -1.0});
+}
+
+
 #else /* standard C and altivec */
 /**
  * This function converts the double precision floating point numbers which
