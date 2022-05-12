@@ -156,6 +156,19 @@ union W128_T {
     uint32_t u32[4];
     double d[2];
 };
+#elif defined (__AARCH64EL__)
+#include <arm_neon.h>
+/** 128-bit data structure */
+union W128_T {
+    uint64x2_t vqi64;
+    uint32x4_t vqi32;
+    uint8x16_t vqi8;
+    
+    float64x2_t vqf64;
+    uint64_t u[2];
+    uint32_t u32[4];
+    double d[2];
+};
 #else  /* standard C */
 /** 128-bit data structure */
 union W128_T {

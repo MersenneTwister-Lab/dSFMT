@@ -96,6 +96,8 @@ std: $(STD_TARGET)
 
 sse2: $(SSE2_TARGET)
 
+neon: $(NEON_TARGET)
+
 avx512: $(AVX512_TARGET)
 
 alti: $(ALTI_TARGET)
