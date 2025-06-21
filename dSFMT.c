@@ -119,7 +119,7 @@ inline static void convert_o0o1(w128_t *w) {
  * @param w 128bit stracture of double precision floating point numbers (I/O)
  */
 inline static void convert_c0o1(w128_t *w) {
-    w->vqf64 = vaddq_f64(w->vqf64, vdupq_n_f64(-1.0));
+    w->f64x2 = vaddq_f64(w->f64x2, vdupq_n_f64(-1.0));
 }
 /**
  * This function converts the double precision floating point numbers which
@@ -128,7 +128,7 @@ inline static void convert_c0o1(w128_t *w) {
  * @param w 128bit stracture of double precision floating point numbers (I/O)
  */
 inline static void convert_o0c1(w128_t *w) {
-    w->vqf64 = vsubq_f64(vdupq_n_f64(2.0), w->vqf64);
+    w->f64x2 = vsubq_f64(vdupq_n_f64(2.0), w->f64x2);
 }
 /**
  * This function converts the double precision floating point numbers which
@@ -137,8 +137,8 @@ inline static void convert_o0c1(w128_t *w) {
  * @param w 128bit stracture of double precision floating point numbers (I/O)
  */
 inline static void convert_o0o1(w128_t *w) {
-    uint64x2_t tmp = vorrq_u64(w->vqi64, vdupq_n_u64(1));
-    w->vqf64 = vaddq_f64(vreinterpretq_f64_u64(tmp), vdupq_n_f64(-1.0));
+    uint64x2_t tmp = vorrq_u64(w->u64x2, vdupq_n_u64(1));
+    w->f64x2 = vaddq_f64(vreinterpretq_f64_u64(tmp), vdupq_n_f64(-1.0));
 }
 #else /* standard C and altivec */
 /**
@@ -204,28 +204,35 @@ inline static void convert_o0o1(w128_t *w) {
 inline static void gen_rand_array_core(dsfmt_t *dsfmt, w128_t *array,
                                        ptrdiff_t size, converter_t converter) {
     ptrdiff_t i, j;
-    w128_t lung;
-
 
 #if defined(HAVE_NEON)
     typedef void (*recursion_func)(w128_t *r, w128_t *a, w128_t *b, w128_t *lung);
     recursion_func do_recursion = do_recursion_neon;
+#if defined(DSFMT_RECURSION_X2)
     recursion_func do_recursion_x2 = do_recursion_x2_neon;
+#endif
+#if defined(DSFMT_RECURSION_X3)
     recursion_func do_recursion_x3 = do_recursion_x3_neon;
+#endif
+#if defined(DSFMT_RECURSION_X4)
     recursion_func do_recursion_x4 = do_recursion_x4_neon;
+#endif
 #if defined(HAVE_SHA3)
     do_recursion = do_recursion_sha3;
+#if defined(DSFMT_RECURSION_X2)
     do_recursion_x2 = do_recursion_x2_sha3;
+#endif
+#endif
+#if defined(DSFMT_RECURSION_X3)
     do_recursion_x3 = do_recursion_x3_sha3;
+#endif
+#if defined(DSFMT_RECURSION_X4)
     do_recursion_x4 = do_recursion_x4_sha3;
 #endif
 #endif
 
-
-    lung = dsfmt->status[DSFMT_N];
+    w128_t lung = dsfmt->status[DSFMT_N];
     i = 0;
-
-
 
     const ptrdiff_t loop1_end = DSFMT_N - DSFMT_POS1;
 #if defined(DSFMT_RECURSION_X4)
@@ -490,18 +497,28 @@ void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
     int i;
     w128_t lung;
 
-
 #if defined(HAVE_NEON)
     typedef void (*recursion_func)(w128_t *r, w128_t *a, w128_t *b, w128_t *lung);
-
     recursion_func do_recursion = do_recursion_neon;
+#if defined(DSFMT_RECURSION_X2)
     recursion_func do_recursion_x2 = do_recursion_x2_neon;
+#endif
+#if defined(DSFMT_RECURSION_X3)
     recursion_func do_recursion_x3 = do_recursion_x3_neon;
+#endif
+#if defined(DSFMT_RECURSION_X4)
     recursion_func do_recursion_x4 = do_recursion_x4_neon;
+#endif
 #if defined(HAVE_SHA3)
     do_recursion = do_recursion_sha3;
+#if defined(DSFMT_RECURSION_X2)
     do_recursion_x2 = do_recursion_x2_sha3;
+#endif
+#endif
+#if defined(DSFMT_RECURSION_X3)
     do_recursion_x3 = do_recursion_x3_sha3;
+#endif
+#if defined(DSFMT_RECURSION_X4)
     do_recursion_x4 = do_recursion_x4_sha3;
 #endif
 #endif
