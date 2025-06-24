@@ -75,7 +75,7 @@ inline static int idxof(int i) {
 /**
  * dummy function
  */
-inline static void no_convert(w128_t *げw) 
+inline static void no_convert(w128_t *w) 
 {
     /* do nothing */
 }
@@ -100,7 +100,7 @@ inline static void convert_c0o1(w128_t *w) {
 inline static void convert_o0c1(w128_t *w) {
     w->sd = _mm_sub_pd(sse2_double_two.d128, w->sd);
 }
-
+ 
 /**
  * This function converts the double precision floating point numbers which
  * distribute uniformly in the range [1, 2) to those which distribute uniformly
@@ -112,7 +112,7 @@ inline static void convert_o0o1(w128_t *w) {
     w->sd = _mm_add_pd(w->sd, sse2_double_m_one.d128);
 }
 #elif defined(__aarch64__) && defined(HAVE_NEON) 
-/**
+/** 
  * This function converts the double precision floating point numbers which
  * distribute uniformly in the range [1, 2) to those which distribute uniformly
  * in the range [0, 1).
@@ -177,21 +177,7 @@ inline static void convert_o0o1(w128_t *w) {
 }
 #endif
 
-
-#if DSFMT_N - DSFMT_POS1 > 3 && defined(DO_RECURSION_X4)
-    #define DSFMT_RECURSION_X4
-#endif
-
-#if DSFMT_N - DSFMT_POS1 == 3 && defined(DO_RECURSION_X3)
-    #define DSFMT_RECURSION_X3
-#endif
-#if DSFMT_N - DSFMT_POS1 > 1 && defined(DO_RECURSION_X2)
-    #define DSFMT_RECURSION_X2
-#endif
-
-
-
-
+#if !defined(DSFMT_AVX2_DECLEARED)
 /**
  * This is the core function for generating pseudorandom numbers.
  * It fills the user-specified array and applies a given conversion.
@@ -204,32 +190,6 @@ inline static void convert_o0o1(w128_t *w) {
 inline static void gen_rand_array_core(dsfmt_t *dsfmt, w128_t *array,
                                        ptrdiff_t size, converter_t converter) {
     ptrdiff_t i, j;
-
-#if defined(HAVE_NEON)
-    typedef void (*recursion_func)(w128_t *r, w128_t *a, w128_t *b, w128_t *lung);
-    recursion_func do_recursion = do_recursion_neon;
-#if defined(DSFMT_RECURSION_X2)
-    recursion_func do_recursion_x2 = do_recursion_x2_neon;
-#endif
-#if defined(DSFMT_RECURSION_X3)
-    recursion_func do_recursion_x3 = do_recursion_x3_neon;
-#endif
-#if defined(DSFMT_RECURSION_X4)
-    recursion_func do_recursion_x4 = do_recursion_x4_neon;
-#endif
-#if defined(HAVE_SHA3)
-    do_recursion = do_recursion_sha3;
-#if defined(DSFMT_RECURSION_X2)
-    do_recursion_x2 = do_recursion_x2_sha3;
-#endif
-#endif
-#if defined(DSFMT_RECURSION_X3)
-    do_recursion_x3 = do_recursion_x3_sha3;
-#endif
-#if defined(DSFMT_RECURSION_X4)
-    do_recursion_x4 = do_recursion_x4_sha3;
-#endif
-#endif
 
     w128_t lung = dsfmt->status[DSFMT_N];
     i = 0;
@@ -362,30 +322,54 @@ inline static void gen_rand_array_core(dsfmt_t *dsfmt, w128_t *array,
 
     dsfmt->status[DSFMT_N] = lung;
 }
+#endif
 
+#if defined(DSFMT_AVX2_DECLEARED)
 // 元のgen_rand_array_c1o2を置き換える
 inline static void gen_rand_array_c1o2(dsfmt_t *dsfmt, w128_t *array,
                                        ptrdiff_t size) {
-    gen_rand_array_core(dsfmt, array, size, no_convert);
+    gen_rand_array_avx_core(dsfmt, array, size, no_convert_avx);
 }
 
 // 元のgen_rand_array_c0o1を置き換える
 inline static void gen_rand_array_c0o1(dsfmt_t *dsfmt, w128_t *array,
                                        ptrdiff_t size) {
-    gen_rand_array_core(dsfmt, array, size, convert_c0o1);
+    gen_rand_array_avx_core(dsfmt, array, size, convert_c0o1_avx);
 }
 
 // 元のgen_rand_array_o0c1を置き換える
 inline static void gen_rand_array_o0c1(dsfmt_t *dsfmt, w128_t *array,
                                        ptrdiff_t size) {
-    gen_rand_array_core(dsfmt, array, size, convert_o0c1);
+    gen_rand_array_avx_core(dsfmt, array, size, convert_o0c1_avx);
 }
-
 // 元のgen_rand_array_o0o1を置き換える
 inline static void gen_rand_array_o0o1(dsfmt_t *dsfmt, w128_t *array,
                                        ptrdiff_t size) {
+    gen_rand_array_avx_core(dsfmt, array, size, convert_o0o1_avx);
+}
+#else
+// 元のgen_rand_array_c1o2を置き換える
+inline static void gen_rand_array_c1o2(
+    dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
+    gen_rand_array_core(dsfmt, array, size, no_convert);
+}
+// 元のgen_rand_array_c0o1を置き換える
+inline static void gen_rand_array_c0o1(
+    dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
+    gen_rand_array_core(dsfmt, array, size, convert_c0o1);
+}
+
+// 元のgen_rand_array_o0c1を置き換える
+inline static void gen_rand_array_o0c1(
+    dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
+    gen_rand_array_core(dsfmt, array, size, convert_o0c1);
+}
+// 元のgen_rand_array_o0o1を置き換える
+inline static void gen_rand_array_o0o1(
+    dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
     gen_rand_array_core(dsfmt, array, size, convert_o0o1);
 }
+#endif
 
 /**
  * This function represents a function used in the initialization
@@ -488,6 +472,7 @@ int dsfmt_get_min_array_size(void) {
     return DSFMT_N64;
 }
 
+#if !defined(DSFMT_GEN_DRAND_ALL) 
 /**
  * This function fills the internal state array with double precision
  * floating point pseudorandom numbers of the IEEE 754 format.
@@ -496,33 +481,6 @@ int dsfmt_get_min_array_size(void) {
 void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
     int i;
     w128_t lung;
-
-#if defined(HAVE_NEON)
-    typedef void (*recursion_func)(w128_t *r, w128_t *a, w128_t *b, w128_t *lung);
-    recursion_func do_recursion = do_recursion_neon;
-#if defined(DSFMT_RECURSION_X2)
-    recursion_func do_recursion_x2 = do_recursion_x2_neon;
-#endif
-#if defined(DSFMT_RECURSION_X3)
-    recursion_func do_recursion_x3 = do_recursion_x3_neon;
-#endif
-#if defined(DSFMT_RECURSION_X4)
-    recursion_func do_recursion_x4 = do_recursion_x4_neon;
-#endif
-#if defined(HAVE_SHA3)
-    do_recursion = do_recursion_sha3;
-#if defined(DSFMT_RECURSION_X2)
-    do_recursion_x2 = do_recursion_x2_sha3;
-#endif
-#endif
-#if defined(DSFMT_RECURSION_X3)
-    do_recursion_x3 = do_recursion_x3_sha3;
-#endif
-#if defined(DSFMT_RECURSION_X4)
-    do_recursion_x4 = do_recursion_x4_sha3;
-#endif
-#endif
-
 
     lung = dsfmt->status[DSFMT_N];
     i = 0;
@@ -578,6 +536,7 @@ void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
     }
     dsfmt->status[DSFMT_N] = lung;
 }
+#endif 
 
 /**
  * This function generates double precision floating point
@@ -736,7 +695,7 @@ void dsfmt_chk_init_by_array(dsfmt_t *dsfmt, uint32_t init_key[],
 	count = key_length + 1;
     } else {
 	count = size;
-    }
+    } 
     r = ini_func1(psfmt32[idxof(0)] ^ psfmt32[idxof(mid % size)]
 		  ^ psfmt32[idxof((size - 1) % size)]);
     psfmt32[idxof(mid % size)] += r;
