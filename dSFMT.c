@@ -80,7 +80,7 @@ inline static void no_convert(w128_t *w)
     /* do nothing */
 }
 
-#if defined(HAVE_SSE2)
+#if defined(HAVE_SSE2) 
 /**
  * This function converts the double precision floating point numbers which
  * distribute uniformly in the range [1, 2) to those which distribute uniformly
@@ -177,7 +177,6 @@ inline static void convert_o0o1(w128_t *w) {
 }
 #endif
 
-#if !defined(DSFMT_AVX2_DECLEARED)
 /**
  * This is the core function for generating pseudorandom numbers.
  * It fills the user-specified array and applies a given conversion.
@@ -322,32 +321,7 @@ inline static void gen_rand_array_core(dsfmt_t *dsfmt, w128_t *array,
 
     dsfmt->status[DSFMT_N] = lung;
 }
-#endif
 
-#if defined(DSFMT_AVX2_DECLEARED)
-// 元のgen_rand_array_c1o2を置き換える
-inline static void gen_rand_array_c1o2(dsfmt_t *dsfmt, w128_t *array,
-                                       ptrdiff_t size) {
-    gen_rand_array_avx_core(dsfmt, array, size, no_convert_avx);
-}
-
-// 元のgen_rand_array_c0o1を置き換える
-inline static void gen_rand_array_c0o1(dsfmt_t *dsfmt, w128_t *array,
-                                       ptrdiff_t size) {
-    gen_rand_array_avx_core(dsfmt, array, size, convert_c0o1_avx);
-}
-
-// 元のgen_rand_array_o0c1を置き換える
-inline static void gen_rand_array_o0c1(dsfmt_t *dsfmt, w128_t *array,
-                                       ptrdiff_t size) {
-    gen_rand_array_avx_core(dsfmt, array, size, convert_o0c1_avx);
-}
-// 元のgen_rand_array_o0o1を置き換える
-inline static void gen_rand_array_o0o1(dsfmt_t *dsfmt, w128_t *array,
-                                       ptrdiff_t size) {
-    gen_rand_array_avx_core(dsfmt, array, size, convert_o0o1_avx);
-}
-#else
 // 元のgen_rand_array_c1o2を置き換える
 inline static void gen_rand_array_c1o2(
     dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
@@ -369,7 +343,6 @@ inline static void gen_rand_array_o0o1(
     dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
     gen_rand_array_core(dsfmt, array, size, convert_o0o1);
 }
-#endif
 
 /**
  * This function represents a function used in the initialization
@@ -465,14 +438,14 @@ const char *dsfmt_get_idstring(void) {
 
 /**
  * This function returns the minimum size of array used for \b
- * fill_array functions.
+ * fill_array functions.#if !defined(DSFMT_GEN_DRAND_ALL) 
  * @return minimum size of array used for fill_array functions.
  */
 int dsfmt_get_min_array_size(void) {
     return DSFMT_N64;
 }
 
-#if !defined(DSFMT_GEN_DRAND_ALL) 
+
 /**
  * This function fills the internal state array with double precision
  * floating point pseudorandom numbers of the IEEE 754 format.
@@ -536,7 +509,6 @@ void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
     }
     dsfmt->status[DSFMT_N] = lung;
 }
-#endif 
 
 /**
  * This function generates double precision floating point

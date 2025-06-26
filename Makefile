@@ -193,8 +193,8 @@ test-alti-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-sse2-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h 
 	$(CC) $(CCFLAGS) $(SSE2FLAGS) -DDSFMT_MEXP=2203 -o $@ dSFMT.c test.c
 
-test-avx2-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h dSFMT-avx2.h
-	$(CC) $(CCFLAGS) $(AVX2FLAGS) -DDSFMT_MEXP=1279 -o $@ dSFMT.c test.c
+test-avx2-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h 
+	$(CC) $(CCFLAGS) $(AVX2FLAGS) -DDSFMT_MEXP=2203 -o $@ dSFMT.c test.c
 
 test-avx512-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(AVX512FLAGS) -DDSFMT_MEXP=2203 -o $@ dSFMT.c test.c
@@ -214,8 +214,8 @@ test-alti-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-sse2-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(SSE2FLAGS) -DDSFMT_MEXP=4253 -o $@ dSFMT.c test.c
 
-test-avx2-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h dSFMT-avx2.h
-	$(CC) $(CCFLAGS) $(AVX2FLAGS) -DDSFMT_MEXP=1279 -o $@ dSFMT.c test.c
+test-avx2-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h 
+	$(CC) $(CCFLAGS) $(AVX2FLAGS) -DDSFMT_MEXP=4253 -o $@ dSFMT.c test.c
 
 test-avx512-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(SSE2FLAGS) -DDSFMT_MEXP=4253 -o $@ dSFMT.c test.c
@@ -235,7 +235,7 @@ test-alti-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-sse2-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(SSE2FLAGS) -DDSFMT_MEXP=11213 -o $@ dSFMT.c test.c
 
-test-avx2-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h dSFMT-avx2.h
+test-avx2-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(AVX2FLAGS) -DDSFMT_MEXP=11213 -o $@ dSFMT.c test.c
 
 test-avx512-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -299,7 +299,7 @@ test-sse2-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(SSE2FLAGS) -DDSFMT_MEXP=86243 -o $@ dSFMT.c test.c
 
 test-avx2-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
-	$(CC) $(CCFLAGS) $(AVX512FLAGS) -DDSFMT_MEXP=86243 -o $@ dSFMT.c test.c
+	$(CC) $(CCFLAGS) $(AVX2FLAGS) -DDSFMT_MEXP=86243 -o $@ dSFMT.c test.c
 
 test-avx512-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(AVX512FLAGS) -DDSFMT_MEXP=86243 -o $@ dSFMT.c test.c

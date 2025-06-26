@@ -75,9 +75,6 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
     r->s = vec_xor(z, x);
     lung->s = w;
 }
-#elif defined(HAVE_AVX2) && DSFMT_MEXP >= 2203
-#include "dSFMT-avx2.h"
-#define DSFMT_AVX2_DECLEARED
 #elif defined(HAVE_SSE2)
 /**
  * This function represents the recursion formula.
@@ -109,6 +106,14 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     r->si = v;
     u->si = y;
 }
+
+/**
+ * This function represents the recursion formula.
+ * @param a a 128-bit part of the internal state array
+ * @param b a 128-bit part of the internal state array
+ * @param u 128-bit (expand to 256-bit) part of the internal state array (I/O)
+ * @return output 256-bit
+ */
 
 inline static void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     __m128i v1, w1, x1, y1, z1;
