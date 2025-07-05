@@ -156,6 +156,15 @@ union W128_T {
     uint32_t u32[4];
     double d[2];
 };
+
+#if defined(HAVE_AVX2)
+#include <immintrin.h>
+union W256_T {
+    __m256i y;
+    union W128_T x[2];
+};
+#endif
+
 #elif defined (__AARCH64EL__)
 #include <arm_neon.h>
 /** 128-bit data structure */

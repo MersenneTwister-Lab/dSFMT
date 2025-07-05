@@ -35,7 +35,7 @@ CCFLAGS = $(OPTI) $(WARN) $(STD)
 ALTIFLAGS = -mabi=altivec -maltivec -DHAVE_ALTIVEC
 OSXALTIFLAGS = -faltivec -maltivec -DHAVE_ALTIVEC
 SSE2FLAGS = -msse2 -DHAVE_SSE2
-AVX2FLAGS = -march=core-avx2 -DHAVE_SSE2 -DHAVE_AVX2
+AVX2FLAGS = -mavx2 -DHAVE_SSE2 -DHAVE_AVX2
 AVX512FLAGS = -march=skylake-avx512 -DHAVE_SSE2 -DHAVE_AVX2 -DHAVE_AVX512 
 ARM64SHA3FLAGS  = -march=armv8.5-a+sha3
 NEONFLAGS = -march=armv8+nosha3
@@ -62,10 +62,10 @@ NEON_TARGET = test-neon-M19937
 ALL_NEON_TARGET = test-neon-M521 test-neon-M1279 test-neon-M2203 \
 test-neon-M4253 test-neon-M11213 test-neon-M19937 test-neon-M44497 \
 test-neon-M86243 test-neon-M132049 test-neon-M216091
-SHA3_TARGET = test-neonsha3-M19937
-ALL_SHA3_TARGET = test-neonsha3-M521 test-neonsha3-M1279 test-neonsha3-M2203 \
-test-neonsha3-M4253 test-neonsha3-M11213 test-neonsha3-M19937 test-neonsha3-M44497 \
-test-neonsha3-M86243 test-neonsha3-M132049 test-neonsha3-M216091
+NEON_SHA3_TARGET = test-neon-sha3-M19937
+ALL_NEON_SHA3_TARGET = test-neon-sha3-M521 test-neon-sha3-M1279 test-neon-sha3-M2203 \
+test-neon-sha3-M4253 test-neon-sha3-M11213 test-neon-sha3-M19937 test-neon-sha3-M44497 \
+test-neon-sha3-M86243 test-neon-sha3-M132049 test-neon-sha3-M216091
 
 # ==========================================================
 # comment out or EDIT following lines to get max performance
@@ -99,7 +99,7 @@ test-neonsha3-M86243 test-neonsha3-M132049 test-neonsha3-M216091
 # -----------------
 #CCFLAGS += -march=athlon64
 
-.PHONY: std-check sse2-check avx2-check alti-check neon-check sha3-check
+.PHONY: std-check sse2-check avx2-check alti-check neon-check neon-sha3-check
 
 std: $(STD_TARGET)
 
@@ -109,7 +109,7 @@ avx2: $(AVX2_TARGET)
 
 neon: $(NEON_TARGET)
 
-sha3: $(SHA3_TARGET)
+neon-sha3: $(NEON_SHA3_TARGET)
 
 avx512: $(AVX512_TARGET)
 
@@ -133,8 +133,8 @@ avx512-check: $(ALL_AVX512_TARGET)
 neon-check: $(ALL_NEON_TARGET) $(ARM64_NO_SHA3_FLAGS)
 	./check.sh test-neon
 
-sha3-check: $(ALL_SHA3_TARGET)
-	./check.sh test-neonsha3
+neon-sha3-check: $(ALL_NEON_SHA3_TARGET)
+	./check.sh test-neon-sha3
 
 alti-check: $(ALL_ALTI_TARGET)
 	./check.sh test-alti
@@ -160,7 +160,7 @@ test-avx512-M521: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M521: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=521 -o $@ dSFMT.c test.c
 
-test-neonsha3-M521: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M521: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=521 -o $@ dSFMT.c test.c
 
 test-std-M1279: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -181,7 +181,7 @@ test-avx512-M1279: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M1279: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=1279 -o $@ dSFMT.c test.c
 
-test-neonsha3-M1279: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M1279: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=1279 -o $@ dSFMT.c test.c
 
 test-std-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -202,7 +202,7 @@ test-avx512-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=2203 -o $@ dSFMT.c test.c
 
-test-neonsha3-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M2203: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=2203 -o $@ dSFMT.c test.c
 
 test-std-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -223,7 +223,7 @@ test-avx512-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=4253 -o $@ dSFMT.c test.c
 
-test-neonsha3-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M4253: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=4253 -o $@ dSFMT.c test.c
 
 test-std-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -244,7 +244,7 @@ test-avx512-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=11213 -o $@ dSFMT.c test.c
 
-test-neonsha3-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M11213: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=11213 -o $@ dSFMT.c test.c
 
 test-std-M19937: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -265,7 +265,7 @@ test-avx512-M19937: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M19937: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=19937 -o $@ dSFMT.c test.c
 
-test-neonsha3-M19937: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M19937: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=19937 -o $@ dSFMT.c test.c
 
 test-std-M44497: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -286,7 +286,7 @@ test-avx512-M44497: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M44497: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=44497 -o $@ dSFMT.c test.c
 
-test-neonsha3-M44497: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M44497: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=44497 -o $@ dSFMT.c test.c
 
 test-std-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -307,7 +307,7 @@ test-avx512-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=86243 -o $@ dSFMT.c test.c
 
-test-neonsha3-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M86243: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=86243 -o $@ dSFMT.c test.c
 
 test-std-M132049: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -328,7 +328,7 @@ test-avx512-M132049: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M132049: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=132049 -o $@ dSFMT.c test.c
 
-test-neonsha3-M132049: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M132049: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=132049 -o $@ dSFMT.c test.c
 
 test-std-M216091: test.c dSFMT.c dSFMT.h dSFMT-common.h
@@ -349,7 +349,7 @@ test-avx512-M216091: test.c dSFMT.c dSFMT.h dSFMT-common.h
 test-neon-M216091: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(NEONFLAGS) -DDSFMT_MEXP=216091 -o $@ dSFMT.c test.c
 
-test-neonsha3-M216091: test.c dSFMT.c dSFMT.h dSFMT-common.h
+test-neon-sha3-M216091: test.c dSFMT.c dSFMT.h dSFMT-common.h
 	$(CC) $(CCFLAGS) $(ARM64SHA3FLAGS) -DDSFMT_MEXP=216091 -o $@ dSFMT.c test.c
 
 .c.o:
