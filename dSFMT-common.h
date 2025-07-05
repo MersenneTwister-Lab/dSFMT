@@ -84,7 +84,7 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
     lung->s = w;
 }
 #elif defined(HAVE_AVX512) && DSFMT_MEXP >= 1279
-#include "dSFMT-avx512.h
+#include "dSFMT-avx512.h"
 #define DSFMT_GEN_RAND_CUSTOM
 
 #elif defined(HAVE_AVX2) && DSFMT_MEXP > 1279
