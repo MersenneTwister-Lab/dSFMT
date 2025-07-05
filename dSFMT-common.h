@@ -23,6 +23,14 @@
 
 #include "dSFMT.h"
 
+enum DSFMT_CONVERT_TYPE {
+    NO_CONVERT_CLOSE1_OPEN2 = 0,
+    CONVERT_OPEN0_CLOSE1 = 1,
+    CONVERT_OPEN0_OPEN1 = 2,
+    CONVERT_CLOSE0_OPEN1 = 3
+};
+
+
 #if defined(HAVE_SSE2)
 #  include <emmintrin.h>
 #if defined(__AVX2__)
@@ -75,7 +83,21 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
     r->s = vec_xor(z, x);
     lung->s = w;
 }
+#elif defined(HAVE_AVX512) && DSFMT_MEXP >= 1279
+#include "dSFMT-avx512.h
+#define DSFMT_GEN_RAND_CUSTOM
+
+#elif defined(HAVE_AVX2) && DSFMT_MEXP > 1279
+#include "dSFMT-avx2.h"
+#define DSFMT_GEN_RAND_CUSTOM
+
 #elif defined(HAVE_SSE2)
+#if DSFMT_MEXP == 1279
+#define DSFMT_RECURSION_X3
+#elif DSFMT_N - DSFMT_POS1 > 1 
+#define DSFMT_RECURSION_X2
+#endif
+
 /**
  * This function represents the recursion formula.
  * @param r output 128-bit
@@ -106,14 +128,6 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     r->si = v;
     u->si = y;
 }
-
-/**
- * This function represents the recursion formula.
- * @param a a 128-bit part of the internal state array
- * @param b a 128-bit part of the internal state array
- * @param u 128-bit (expand to 256-bit) part of the internal state array (I/O)
- * @return output 256-bit
- */
 
 inline static void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     __m128i v1, w1, x1, y1, z1;
@@ -153,14 +167,8 @@ inline static void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
 inline static void do_recursion_x3(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     do_recursion_x2(r, a, b, u);
     do_recursion(r+2, a+2, b+2, u);
-}
+} 
 
-#if DSFMT_MEXP == 1279
-#define DSFMT_RECURSION_X3
-#elif DSFMT_N - DSFMT_POS1 > 1 
-#define DSFMT_RECURSION_X2
-#endif
- 
 #elif defined(HAVE_NEON)
 #include "dSFMT-neon.h"
 #else
@@ -185,4 +193,380 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
     r->u[1] = (lung->u[1] >> DSFMT_SR) ^ (lung->u[1] & DSFMT_MSK2) ^ t1;
 }
 #endif
+
+
+#if !defined(DSFMT_GEN_RAND_CUSTOM)
+/**
+ * This function fills the internal state array with double precision
+ * floating point pseudorandom numbers of the IEEE 754 format.
+ * @param dsfmt dsfmt state vector.
+ */
+inline static void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
+    int i;
+
+    w128_t lung;
+    lung = dsfmt->status[DSFMT_N];
+
+    i = 0;
+
+    const int loop1_end = DSFMT_N - DSFMT_POS1;
+    const int loop2_end = DSFMT_N;
+    
+#if defined(DSFMT_RECURSION_X4)
+    for (; i < loop1_end - 3; i += 4) {
+        do_recursion_x4(&dsfmt->status[i], &dsfmt->status[i],
+                        &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+    if (i < loop1_end) {
+        w128_t b[4];
+        switch (loop1_end & 3)
+        { 
+            case 1:
+                b[0] = dsfmt->status[i + DSFMT_POS1];
+                b[1] = dsfmt->status[0];
+                b[2] = dsfmt->status[1];
+                b[3] = dsfmt->status[2];
+                break;
+            case 2:
+                b[0] = dsfmt->status[i + DSFMT_POS1];
+                b[1] = dsfmt->status[i + DSFMT_POS1+1];
+                b[2] = dsfmt->status[0];
+                b[3] = dsfmt->status[1];
+                break;
+            case 3:
+                b[0] = dsfmt->status[i + DSFMT_POS1];
+                b[1] = dsfmt->status[i + DSFMT_POS1+1];
+                b[2] = dsfmt->status[i + DSFMT_POS1+2];
+                b[3] = dsfmt->status[0];
+                break;
+        }
+        do_recursion_x4(&dsfmt->status[i], &dsfmt->status[i], &b[0], &lung);
+        i+=4;
+    }
+
+    for (; i < loop2_end - 3; i += 4) {
+        do_recursion_x4(&dsfmt->status[i], &dsfmt->status[i],
+                        &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+    for (; i < loop2_end; i++) {
+        do_recursion(&dsfmt->status[i], &dsfmt->status[i],
+                     &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#elif defined(DSFMT_RECURSION_X2)
+    for (; i < loop1_end - 1; i += 2) {
+        do_recursion_x2(&dsfmt->status[i], &dsfmt->status[i],
+                        &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+    if ((DSFMT_N - DSFMT_POS1) & 1)
+    {
+        w128_t b[2];
+        b[0] = dsfmt->status[i + DSFMT_POS1];
+        b[1] = dsfmt->status[0];
+        do_recursion_x2(&dsfmt->status[i], &dsfmt->status[i], b, &lung);
+        i+=2;
+    }
+    for (; i < loop2_end - 1; i += 2) {
+        do_recursion_x2(&dsfmt->status[i], &dsfmt->status[i],
+                        &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+    if (i < loop2_end) {
+        do_recursion(&dsfmt->status[i], &dsfmt->status[i],
+                     &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#elif defined(DSFMT_RECURSION_X3)
+    for (; i < loop1_end; i += 3) {
+        do_recursion_x3(&dsfmt->status[i], &dsfmt->status[i],
+                        &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+    for (; i < loop2_end; i += 3) {
+        do_recursion_x3(&dsfmt->status[i], &dsfmt->status[i],
+                        &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#else
+    for (; i < loop1_end; i++) {
+        do_recursion(&dsfmt->status[i], &dsfmt->status[i],
+                     &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+    for (; i < loop2_end; i++) {
+        do_recursion(&dsfmt->status[i], &dsfmt->status[i],
+                     &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#endif
+
+    dsfmt->status[DSFMT_N] = lung;
+}
+
+
+/**
+ * dummy function
+ */
+inline static void no_convert(w128_t *w) 
+{
+    /* do nothing */
+}
+
+#if defined(HAVE_SSE2) 
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1(w128_t *w) {
+    w->sd = _mm_add_pd(w->sd, _mm_set1_pd(-1.0));
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1(w128_t *w) {
+    w->sd = _mm_sub_pd(_mm_set1_pd(2.0), w->sd);
+}
+ 
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1(w128_t *w) {
+    w->si = _mm_or_si128(w->si, _mm_set1_epi64x(1));
+    w->sd = _mm_add_pd(w->sd, _mm_set1_pd(-1.0));
+}
+#elif defined(__aarch64__) && defined(HAVE_NEON) 
+/** 
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1(w128_t *w) {
+    w->f64x2 = vaddq_f64(w->f64x2, vdupq_n_f64(-1.0));
+}
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1(w128_t *w) {
+    w->f64x2 = vsubq_f64(vdupq_n_f64(2.0), w->f64x2);
+}
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1(w128_t *w) {
+    uint64x2_t tmp = vorrq_u64(w->u64x2, vdupq_n_u64(1));
+    w->f64x2 = vaddq_f64(vreinterpretq_f64_u64(tmp), vdupq_n_f64(-1.0));
+}
+#else /* standard C and altivec */
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1(w128_t *w) {
+    w->d[0] -= 1.0;
+    w->d[1] -= 1.0;
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1(w128_t *w) {
+    w->d[0] = 2.0 - w->d[0];
+    w->d[1] = 2.0 - w->d[1];
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1(w128_t *w) {
+    w->u[0] |= 1;
+    w->u[1] |= 1;
+    w->d[0] -= 1.0;
+    w->d[1] -= 1.0;
+}
+#endif
+
+/**
+ * This is the core function for generating pseudorandom numbers.
+ * It fills the user-specified array and applies a given conversion.
+ * (Unrolled version)
+ * @param dsfmt dsfmt state vector.
+ * @param array an 128-bit array to be filled by pseudorandom numbers.
+ * @param size number of 128-bit pseudorandom numbers to be generated.
+ * @param converter a function pointer for value conversion.
+ */
+inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
+                                  ptrdiff_t size, enum DSFMT_CONVERT_TYPE convType) {
+
+    ptrdiff_t i, j;
+
+    typedef void (*converter_t)(w128_t*);
+    converter_t converter = no_convert;
+
+    w128_t lung = dsfmt->status[DSFMT_N];
+    i = 0;
+
+    switch (convType)
+    {
+        case CONVERT_CLOSE0_OPEN1:
+            converter = convert_c0o1;
+            break;
+        case CONVERT_OPEN0_CLOSE1:
+            converter = convert_o0c1;
+            break;
+        case CONVERT_OPEN0_OPEN1:
+            converter = convert_o0o1;
+            break;
+        default: //NO_CONVERT_CLOSE1_OPEN2:
+            break;
+    }
+
+
+    const ptrdiff_t loop1_end = DSFMT_N - DSFMT_POS1;
+#if defined(DSFMT_RECURSION_X4)
+    for (; i <= loop1_end - 4; i += 4) {
+        do_recursion_x4(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X3)
+    for (; i <= loop1_end - 3; i += 3) {
+        do_recursion_x3(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X2)
+    for (; i <= loop1_end - 2; i += 2) {
+        do_recursion_x2(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+#endif
+    for (; i < loop1_end; i++) {
+        do_recursion(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+    }
+
+    // ループ2: 状態ベクトル後半と生成済み配列の一部を使って生成
+    const ptrdiff_t loop2_end = DSFMT_N;
+
+#if defined(DSFMT_RECURSION_X4)
+    for (; i <= loop2_end - 4; i += 4) {
+        do_recursion_x4(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X3)
+    for (; i <= loop1_end - 3; i += 3) {
+        do_recursion_x3(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X2)
+    for (; i <= loop2_end - 2; i += 2) {
+        do_recursion_x2(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+#endif
+    for (; i < loop2_end; i++) {
+        do_recursion(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+    }
+
+    // ループ3: メインの生成ループ
+    const ptrdiff_t loop3_end = size - DSFMT_N;
+#if defined(DSFMT_RECURSION_X4)
+    for (; i <= loop3_end - 4; i += 4) {
+        do_recursion_x4(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        converter(&array[i - DSFMT_N]);
+        converter(&array[i - DSFMT_N + 1]);
+        converter(&array[i - DSFMT_N + 2]);
+        converter(&array[i - DSFMT_N + 3]);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X3)
+    for (; i <= loop3_end - 3; i += 3) {
+        do_recursion_x3(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        converter(&array[i - DSFMT_N]);
+        converter(&array[i - DSFMT_N + 1]);
+        converter(&array[i - DSFMT_N + 2]);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X2)
+    for (; i <= loop3_end - 2; i += 2) {
+        do_recursion_x2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        converter(&array[i - DSFMT_N]);
+        converter(&array[i - DSFMT_N + 1]);
+    }
+#endif
+    for (; i < loop3_end; i++) {
+        do_recursion(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        converter(&array[i - DSFMT_N]);
+    }
+
+    // ループ4: 次の状態ベクトルを準備 (前半)
+    const ptrdiff_t loop4_end = 2 * DSFMT_N - size;
+    for (j = 0; j < loop4_end; j++) {
+        dsfmt->status[j] = array[j + size - DSFMT_N];
+    }
+
+    // ループ5: 配列の残りを生成しつつ、次の状態ベクトルを準備 (後半)
+    const ptrdiff_t loop5_end = size;
+#if defined(DSFMT_RECURSION_X4)
+    for (; i <= loop5_end - 4; i += 4, j += 4) {
+        do_recursion_x4(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        dsfmt->status[j]     = array[i];
+        dsfmt->status[j + 1] = array[i + 1];
+        dsfmt->status[j + 2] = array[i + 2];
+        dsfmt->status[j + 3] = array[i + 3];
+        converter(&array[i - DSFMT_N]);
+        converter(&array[i - DSFMT_N + 1]);
+        converter(&array[i - DSFMT_N + 2]);
+        converter(&array[i - DSFMT_N + 3]);
+    }
+#endif
+#if defined(DSFMT_RECURSION_X3)
+    for (; i <= loop5_end - 3; i += 3, j += 3) {
+        do_recursion_x3(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        dsfmt->status[j]     = array[i];
+        dsfmt->status[j + 1] = array[i + 1];
+        dsfmt->status[j + 2] = array[i + 2];
+        converter(&array[i - DSFMT_N]);
+        converter(&array[i - DSFMT_N + 1]);
+        converter(&array[i - DSFMT_N + 2]);
+    }
+#endif
+
+#if defined(DSFMT_RECURSION_X2)
+    for (; i <= loop5_end - 2; i += 2, j += 2) {
+        do_recursion_x2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        dsfmt->status[j]     = array[i];
+        dsfmt->status[j + 1] = array[i + 1];
+        converter(&array[i - DSFMT_N]);
+        converter(&array[i - DSFMT_N + 1]);
+    }
+#endif
+    for (; i < loop5_end; i++, j++) {
+        do_recursion(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        dsfmt->status[j] = array[i];
+        converter(&array[i - DSFMT_N]);
+    }
+
+    // ループ6: 生成された配列の末尾部分に変換を適用
+    for ( i = size - DSFMT_N; i < size; i++) {
+        converter(&array[i]);
+    }
+
+    dsfmt->status[DSFMT_N] = lung;
+}
+#endif //DSFMT_GEN_RAND_CUSTOM
+
+
 #endif
