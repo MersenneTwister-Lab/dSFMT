@@ -157,7 +157,6 @@ int dsfmt_get_min_array_size(void) {
     return DSFMT_N64;
 }
 
-
 /**
  * This function fills the internal state array with double precision
  * floating point pseudorandom numbers of the IEEE 754 format.
@@ -166,6 +165,181 @@ int dsfmt_get_min_array_size(void) {
 void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
     dsfmt_gen_rand_all_impl(dsfmt);
 }
+
+#if defined(HAVE_SSE2) 
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline  void convert_c0o1(w128_t *w) {
+    w->sd = _mm_add_pd(w->sd, _mm_set1_pd(-1.0));
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0c1(w128_t *w) {
+    w->sd = _mm_sub_pd(_mm_set1_pd(2.0), w->sd);
+}
+ 
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0o1(w128_t *w) {
+    __m128d mask = _mm_castsi128_pd(_mm_set1_epi64x(1));
+    __m128d result = _mm_or_pd(w->sd, mask);
+    w->sd = _mm_add_pd(result, _mm_set1_pd(-1.0));
+}
+#elif defined(__aarch64__) && defined(HAVE_NEON) 
+/** 
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_c0o1(w128_t *w) {
+    w->f64x2 = vaddq_f64(w->f64x2, vdupq_n_f64(-1.0));
+}
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0c1(w128_t *w) {
+    w->f64x2 = vsubq_f64(vdupq_n_f64(2.0), w->f64x2);
+}
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0o1(w128_t *w) {
+    uint64x2_t tmp = vorrq_u64(w->u64x2, vdupq_n_u64(1));
+    w->f64x2 = vaddq_f64(vreinterpretq_f64_u64(tmp), vdupq_n_f64(-1.0));
+}
+#else /* standard C and altivec */
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_c0o1(w128_t *w) {
+    w->d[0] -= 1.0;
+    w->d[1] -= 1.0;
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0c1(w128_t *w) {
+    w->d[0] = 2.0 - w->d[0];
+    w->d[1] = 2.0 - w->d[1];
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline   void convert_o0o1(w128_t *w) {
+    w->u[0] |= 1;
+    w->u[1] |= 1;
+    w->d[0] -= 1.0;
+    w->d[1] -= 1.0;
+}
+#endif
+
+
+#if defined(HAVE_AVX512)
+#include <immintrin.h>
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_c0o1_avx512(w128_t* w, __mmask8 k) {
+    __m512d v = _mm512_maskz_loadu_pd(k, w);
+    v = _mm512_add_pd(v, _mm512_set1_pd(-1.0));
+    _mm512_mask_storeu_pd(w, k, v);
+}
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0c1_avx512(w128_t* w, __mmask8 k) {
+    __m512d v = _mm512_maskz_loadu_pd(k, w);
+    v = _mm512_sub_pd(_mm512_set1_pd(2.0), v);
+    _mm512_mask_storeu_pd(w, k, v);
+}
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+inline static void convert_o0o1_avx512(w128_t* w, __mmask8 k) {
+    __m512i x = _mm512_maskz_loadu_epi64(k, w);
+    __m512d v = _mm512_castsi512_pd(_mm512_or_epi64(x, _mm512_set1_epi64(1)));
+    v = _mm512_add_pd(v, _mm512_set1_pd(-1.0));
+    _mm512_mask_storeu_pd(w, k, v);
+}
+#endif
+
+#if defined(HAVE_AVX2)
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range [0, 1).
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_c0o1_avx(w128_t * w) {
+    __m256d result = _mm256_add_pd(_mm256_loadu_pd((const double*)w), _mm256_set1_pd(-1.0));
+    _mm256_storeu_pd((double*)w, result);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0c1_avx(w128_t * w) {
+    __m256d result = _mm256_sub_pd(_mm256_set1_pd(2.0), _mm256_loadu_pd((const double*)w));
+    _mm256_storeu_pd((double*)w, result);
+}
+
+/**
+ * This function converts the double precision floating point numbers which
+ * distribute uniformly in the range [1, 2) to those which distribute uniformly
+ * in the range (0, 1].
+ * @param w 128bit stracture of double precision floating point numbers (I/O)
+ */
+static inline void convert_o0o1_avx(w128_t * w) {
+    __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi64x(1));
+    __m256d result = _mm256_or_pd(_mm256_loadu_pd((const double*)w), mask);
+    result = _mm256_add_pd(result, _mm256_set1_pd(-1.0));
+    _mm256_storeu_pd((double*)w, result);
+}
+#endif
+
 
 /**
  * This function generates double precision floating point
@@ -198,7 +372,7 @@ void dsfmt_gen_rand_all(dsfmt_t *dsfmt) {
 void dsfmt_fill_array_close1_open2(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
-    gen_rand_array(dsfmt, (w128_t *)array, size / 2, NO_CONVERT_CLOSE1_OPEN2);
+    gen_rand_array(dsfmt, (w128_t *)array, size / 2);
 }
 
 /**
@@ -216,8 +390,36 @@ void dsfmt_fill_array_close1_open2(dsfmt_t *dsfmt, double array[], ptrdiff_t siz
 void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
-    gen_rand_array(dsfmt, (w128_t *)array, size / 2 , CONVERT_OPEN0_CLOSE1);
+    gen_rand_array(dsfmt, (w128_t *)array, size / 2);
+
+    ptrdiff_t len = size / 2;
+
+    
+    int i = 0;
+#if defined(HAVE_AVX512) 
+    for (i = 0; i < len-3; i += 4) {
+        convert_o0c1_avx512((w128_t *)&array[i*2], 0xFF);
+    }
+    if (i < len) {
+        __mmask8 k = (1 << (2 * (len-i))) - 1;
+
+        convert_o0c1_avx512((w128_t *)&array[i*2], k);
+    }
+
+#elif defined(HAVE_AVX2)
+    for (i = 0; i < len-1; i += 2) {
+        convert_o0c1_avx((w128_t *)&array[i*2]);
+    }
+    if (i < len) {
+        convert_o0c1((w128_t *)&array[i*2]);
+    }
+#else
+    for (i = 0;i < len; i++) {
+        convert_o0c1((w128_t *)&array[i*2]);
+    }
+#endif 
 }
+
 
 /**
  * This function generates double precision floating point
@@ -234,7 +436,31 @@ void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], ptrdiff_t size)
 void dsfmt_fill_array_close_open(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
-    gen_rand_array(dsfmt, (w128_t *)array, size / 2, CONVERT_CLOSE0_OPEN1);
+    gen_rand_array(dsfmt, (w128_t *)array, size / 2);
+
+    ptrdiff_t len = size / 2;
+    int i;
+#if defined(HAVE_AVX512) 
+
+    for (i = 0; i < len-3; i+=4) {
+        convert_c0o1_avx512((w128_t *)&array[i*2], 0xFF);
+    }
+    if (i < len) {
+        __mmask8 k = (1 << (2 * (len-i))) - 1;
+        convert_c0o1_avx512((w128_t *)&array[i*2], k);
+    }
+#elif defined(HAVE_AVX2)
+    for (i = 0; i < len-1; i += 2) {
+        convert_c0o1_avx((w128_t *)&array[i*2]);
+    }
+    if (i < len) {
+        convert_c0o1((w128_t *)&array[i*2]);
+    }
+#else
+    for (i = 0; i < len; i++) {
+        convert_c0o1((w128_t *)&array[i*2]);
+    }
+#endif
 }
 
 /**
@@ -252,7 +478,30 @@ void dsfmt_fill_array_close_open(dsfmt_t *dsfmt, double array[], ptrdiff_t size)
 void dsfmt_fill_array_open_open(dsfmt_t *dsfmt, double array[], ptrdiff_t size) {
     assert(size % 2 == 0);
     assert(size >= DSFMT_N64);
-    gen_rand_array(dsfmt, (w128_t *)array, size / 2, CONVERT_OPEN0_OPEN1);
+    gen_rand_array(dsfmt, (w128_t *)array, size / 2);
+
+    int i;
+    ptrdiff_t len = size/2;
+#if defined(HAVE_AVX512) 
+    for (i = 0; i < len-3; i+=4) {
+        convert_o0o1_avx512((w128_t *)&array[i*2], 0xFF);
+    }
+    if (i < len) {
+        __mmask8 k = (1 << (2 * (len-i))) - 1;
+        convert_o0o1_avx512((w128_t *)&array[i*2], k);
+    }
+#elif defined(HAVE_AVX2)
+    for (i = 0; i < len-1; i += 2) {
+        convert_o0o1_avx((w128_t *)&array[i*2]);
+    }
+    if (i < len) {
+        convert_o0o1((w128_t *)&array[i*2]);
+    }
+#else
+    for (i = 0; i < len; i++) {
+        convert_o0o1((w128_t *)&array[i*2]);
+    }
+#endif
 }
 
 #if defined(__INTEL_COMPILER)

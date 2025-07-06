@@ -55,7 +55,7 @@ static const union X128I_T sse2_param_mask = {{DSFMT_MSK1, DSFMT_MSK2}};
 #endif
 
 #if defined(HAVE_ALTIVEC)
-inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
+static inline  void do_recursion(w128_t *r, w128_t *a, w128_t * b,
 				w128_t *lung) {
     const vector unsigned char sl1 = ALTI_SL1;
     const vector unsigned char sl1_perm = ALTI_SL1_PERM;
@@ -83,9 +83,11 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
     r->s = vec_xor(z, x);
     lung->s = w;
 }
-#elif defined(HAVE_AVX512) && DSFMT_MEXP >= 1279
-#include "dSFMT-avx512.h"
-#define DSFMT_GEN_RAND_CUSTOM
+
+// note : AVX-512 not passed
+//#elif defined(HAVE_AVX512) && DSFMT_MEXP > 1279
+//#include "dSFMT-avx512.h"
+//#define DSFMT_GEN_RAND_CUSTOM
 
 #elif defined(HAVE_AVX2) && DSFMT_MEXP > 1279
 #include "dSFMT-avx2.h"
@@ -111,25 +113,26 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     x = a->si;
     z = _mm_slli_epi64(x, DSFMT_SL1);
     y = _mm_shuffle_epi32(u->si, SSE2_SHUFF);
-#if defined(__AVX512VL__)
+#if defined(HAVE_AVX512)
     y = _mm_ternarylogic_epi32(y, z, b->si, 0x96);
 #else
     z = _mm_xor_si128(z, b->si);
     y = _mm_xor_si128(y, z);
 #endif
+    u->si = y;
+
     v = _mm_srli_epi64(y, DSFMT_SR);
     w = _mm_and_si128(y, sse2_param_mask.i128);
-#if defined(__AVX512VL__)
+#if defined(HAVE_AVX512)
     v = _mm_ternarylogic_epi32(v, x, w, 0x96);
 #else
     v = _mm_xor_si128(v, x);
     v = _mm_xor_si128(v, w);
 #endif
     r->si = v;
-    u->si = y;
 }
 
-inline static void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
+static inline void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     __m128i v1, w1, x1, y1, z1;
     __m128i v2, w2, x2, y2, z2;
 
@@ -138,23 +141,26 @@ inline static void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
 
     z1 = _mm_slli_epi64(x1, DSFMT_SL1);
     z2 = _mm_slli_epi64(x2, DSFMT_SL1);
-
     z1 = _mm_xor_si128(z1, b[0].si);
     z2 = _mm_xor_si128(z2, b[1].si);
     
-    v1 = _mm_shuffle_epi32(z1, SSE2_SHUFF);
-    z2 = _mm_xor_si128(z2, v1);
-
     y2 = u->si;
+    v1 = _mm_shuffle_epi32(z1, SSE2_SHUFF);
     y1 = _mm_shuffle_epi32(y2, SSE2_SHUFF);
+
+
     y1 = _mm_xor_si128(y1, z1);
+    z2 = _mm_xor_si128(z2, v1);
     y2 = _mm_xor_si128(y2, z2);
+
+
     u->si = y2;
 
     v1 = _mm_srli_epi64(y1, DSFMT_SR);
     v2 = _mm_srli_epi64(y2, DSFMT_SR);
     w1 = _mm_and_si128(y1, sse2_param_mask.i128);
     w2 = _mm_and_si128(y2, sse2_param_mask.i128);
+
     v1 = _mm_xor_si128(v1, x1);
     v2 = _mm_xor_si128(v2, x2);
     v1 = _mm_xor_si128(v1, w1);
@@ -164,7 +170,7 @@ inline static void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     r[1].si = v2;
 }
 
-inline static void do_recursion_x3(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
+static inline  void do_recursion_x3(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     do_recursion_x2(r, a, b, u);
     do_recursion(r+2, a+2, b+2, u);
 } 
@@ -179,7 +185,7 @@ inline static void do_recursion_x3(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
  * @param b a 128-bit part of the internal state array
  * @param lung a 128-bit part of the internal state array (I/O)
  */
-inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
+static inline  void do_recursion(w128_t *r, w128_t *a, w128_t * b,
 				w128_t *lung) {
     uint64_t t0, t1, L0, L1;
 
@@ -201,7 +207,7 @@ inline static void do_recursion(w128_t *r, w128_t *a, w128_t * b,
  * floating point pseudorandom numbers of the IEEE 754 format.
  * @param dsfmt dsfmt state vector.
  */
-inline static void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
+static inline  void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
     int i;
 
     w128_t lung;
@@ -295,114 +301,7 @@ inline static void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
 
     dsfmt->status[DSFMT_N] = lung;
 }
-
-
-/**
- * dummy function
- */
-inline static void no_convert(w128_t *w) 
-{
-    /* do nothing */
-}
-
-#if defined(HAVE_SSE2) 
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range [0, 1).
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_c0o1(w128_t *w) {
-    w->sd = _mm_add_pd(w->sd, _mm_set1_pd(-1.0));
-}
-
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range (0, 1].
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_o0c1(w128_t *w) {
-    w->sd = _mm_sub_pd(_mm_set1_pd(2.0), w->sd);
-}
- 
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range (0, 1).
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_o0o1(w128_t *w) {
-    w->si = _mm_or_si128(w->si, _mm_set1_epi64x(1));
-    w->sd = _mm_add_pd(w->sd, _mm_set1_pd(-1.0));
-}
-#elif defined(__aarch64__) && defined(HAVE_NEON) 
-/** 
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range [0, 1).
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_c0o1(w128_t *w) {
-    w->f64x2 = vaddq_f64(w->f64x2, vdupq_n_f64(-1.0));
-}
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range (0, 1].
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_o0c1(w128_t *w) {
-    w->f64x2 = vsubq_f64(vdupq_n_f64(2.0), w->f64x2);
-}
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range (0, 1).
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_o0o1(w128_t *w) {
-    uint64x2_t tmp = vorrq_u64(w->u64x2, vdupq_n_u64(1));
-    w->f64x2 = vaddq_f64(vreinterpretq_f64_u64(tmp), vdupq_n_f64(-1.0));
-}
-#else /* standard C and altivec */
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range [0, 1).
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_c0o1(w128_t *w) {
-    w->d[0] -= 1.0;
-    w->d[1] -= 1.0;
-}
-
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range (0, 1].
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_o0c1(w128_t *w) {
-    w->d[0] = 2.0 - w->d[0];
-    w->d[1] = 2.0 - w->d[1];
-}
-
-/**
- * This function converts the double precision floating point numbers which
- * distribute uniformly in the range [1, 2) to those which distribute uniformly
- * in the range (0, 1).
- * @param w 128bit stracture of double precision floating point numbers (I/O)
- */
-inline static void convert_o0o1(w128_t *w) {
-    w->u[0] |= 1;
-    w->u[1] |= 1;
-    w->d[0] -= 1.0;
-    w->d[1] -= 1.0;
-}
-#endif
-
-/**
+/*
  * This is the core function for generating pseudorandom numbers.
  * It fills the user-specified array and applies a given conversion.
  * (Unrolled version)
@@ -411,31 +310,17 @@ inline static void convert_o0o1(w128_t *w) {
  * @param size number of 128-bit pseudorandom numbers to be generated.
  * @param converter a function pointer for value conversion.
  */
-inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
-                                  ptrdiff_t size, enum DSFMT_CONVERT_TYPE convType) {
+///DSFMT_PST_INLINE 
+static inline __attribute__((always_inline, unused)) 
+void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
 
     ptrdiff_t i, j;
 
-    typedef void (*converter_t)(w128_t*);
-    converter_t converter = no_convert;
+
 
     w128_t lung = dsfmt->status[DSFMT_N];
     i = 0;
 
-    switch (convType)
-    {
-        case CONVERT_CLOSE0_OPEN1:
-            converter = convert_c0o1;
-            break;
-        case CONVERT_OPEN0_CLOSE1:
-            converter = convert_o0c1;
-            break;
-        case CONVERT_OPEN0_OPEN1:
-            converter = convert_o0o1;
-            break;
-        default: //NO_CONVERT_CLOSE1_OPEN2:
-            break;
-    }
 
 
     const ptrdiff_t loop1_end = DSFMT_N - DSFMT_POS1;
@@ -485,30 +370,24 @@ inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
 #if defined(DSFMT_RECURSION_X4)
     for (; i <= loop3_end - 4; i += 4) {
         do_recursion_x4(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        converter(&array[i - DSFMT_N]);
-        converter(&array[i - DSFMT_N + 1]);
-        converter(&array[i - DSFMT_N + 2]);
-        converter(&array[i - DSFMT_N + 3]);
+        
+        
+        
+        
     }
 #endif
 #if defined(DSFMT_RECURSION_X3)
     for (; i <= loop3_end - 3; i += 3) {
         do_recursion_x3(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        converter(&array[i - DSFMT_N]);
-        converter(&array[i - DSFMT_N + 1]);
-        converter(&array[i - DSFMT_N + 2]);
     }
 #endif
 #if defined(DSFMT_RECURSION_X2)
     for (; i <= loop3_end - 2; i += 2) {
         do_recursion_x2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        converter(&array[i - DSFMT_N]);
-        converter(&array[i - DSFMT_N + 1]);
     }
 #endif
     for (; i < loop3_end; i++) {
         do_recursion(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        converter(&array[i - DSFMT_N]);
     }
 
     // ループ4: 次の状態ベクトルを準備 (前半)
@@ -526,10 +405,6 @@ inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
         dsfmt->status[j + 1] = array[i + 1];
         dsfmt->status[j + 2] = array[i + 2];
         dsfmt->status[j + 3] = array[i + 3];
-        converter(&array[i - DSFMT_N]);
-        converter(&array[i - DSFMT_N + 1]);
-        converter(&array[i - DSFMT_N + 2]);
-        converter(&array[i - DSFMT_N + 3]);
     }
 #endif
 #if defined(DSFMT_RECURSION_X3)
@@ -538,9 +413,6 @@ inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
         dsfmt->status[j]     = array[i];
         dsfmt->status[j + 1] = array[i + 1];
         dsfmt->status[j + 2] = array[i + 2];
-        converter(&array[i - DSFMT_N]);
-        converter(&array[i - DSFMT_N + 1]);
-        converter(&array[i - DSFMT_N + 2]);
     }
 #endif
 
@@ -548,22 +420,13 @@ inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
     for (; i <= loop5_end - 2; i += 2, j += 2) {
         do_recursion_x2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
         dsfmt->status[j]     = array[i];
-        dsfmt->status[j + 1] = array[i + 1];
-        converter(&array[i - DSFMT_N]);
-        converter(&array[i - DSFMT_N + 1]);
+        dsfmt->status[j + 1] = array[i + 1];   
     }
 #endif
     for (; i < loop5_end; i++, j++) {
         do_recursion(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        dsfmt->status[j] = array[i];
-        converter(&array[i - DSFMT_N]);
+        dsfmt->status[j] = array[i];   
     }
-
-    // ループ6: 生成された配列の末尾部分に変換を適用
-    for ( i = size - DSFMT_N; i < size; i++) {
-        converter(&array[i]);
-    }
-
     dsfmt->status[DSFMT_N] = lung;
 }
 #endif //DSFMT_GEN_RAND_CUSTOM

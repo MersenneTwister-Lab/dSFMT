@@ -41,17 +41,30 @@ inline static void do_recursion_x2_avx2(w128_t *r, w128_t *a, w128_t *b, __m256i
     z = _mm256_andnot_si256(z_mask, z);
     z = _mm256_xor_si256(z, v);
 
-    y = *u;
-    y = _mm256_permutevar8x32_epi32(y, lung_shuf_idx);
+    w = *u;
+#if 0
+    y = _mm256_permutevar8x32_epi32(w, lung_shuf_idx);
+    *u = _mm256_xor_si256(w, z);
     y = _mm256_xor_si256(y, z); 
+#else
+    y = _mm256_permutevar8x32_epi32(w, lung_shuf_idx);
+    y = _mm256_xor_si256(y, z);
     *u = y;
 
+#endif
     v = _mm256_srli_epi64(y, DSFMT_SR);
     w = _mm256_and_si256(y, dsfmt_mask);
+
+#if defined(HAVE_AVX512)
+    v = _mm256_ternarylogic_epi32(v, w, x, 0x96);
+#else    
     v = _mm256_xor_si256(v, x);
     v = _mm256_xor_si256(v, w);
+#endif
     _mm256_storeu_si256((__m256i*)r, v);
 }
+
+
 
 /**
  * This function represents the recursion formula.
@@ -60,61 +73,40 @@ inline static void do_recursion_x2_avx2(w128_t *r, w128_t *a, w128_t *b, __m256i
  * @param b a 128-bit part of the internal state array
  * @param d a 128-bit part of the internal state array (I/O)
  */
-inline static void do_recursion_x1_avx2(w128_t *r, w128_t *a, w128_t *b, __m256i *u) {
+inline static void do_recursion_x1_avx2(w128_t *r, w128_t* a, w128_t *b, __m256i *u) {
     __m128i v, w, x, y, z;
     __m256i lung_shuf_idx = _mm256_setr_epi32(7, 6, 5, 4, 4, 5, 6, 7);
     __m256i lung_extend;
 
     x = a->si;
     z = _mm_slli_epi64(x, DSFMT_SL1);
-    z = _mm_xor_si128(z, b->si);
 
     lung_extend = _mm256_permutevar8x32_epi32(*u, lung_shuf_idx);
     y = _mm256_castsi256_si128(lung_extend);
+#if defined(HAVE_AVX512)
+    y = _mm_ternarylogic_epi32(y, z, b->si, 0x96);
+#else
+    z = _mm_xor_si128(z, b->si);
     y = _mm_xor_si128(y, z);
-    lung_extend = _mm256_inserti128_si256(lung_extend, y, 1);)
+#endif
+    lung_extend = _mm256_broadcastsi128_si256(y);
     *u = lung_extend;
 
     v = _mm_srli_epi64(y, DSFMT_SR);
     w = _mm_and_si128(y, sse2_param_mask.i128);
+#if defined(HAVE_AVX512)
+    v = _mm_ternarylogic_epi32(v, w, x, 0x96);
+#else
     v = _mm_xor_si128(v, x);
     v = _mm_xor_si128(v, w);
+#endif
+    
     r->si = v;
 }
 
 
 
-inline static void no_convert_avx(const double* w) {}
 
-inline static void convert_c0o1_avx256(const double* w) {
-    __m256d result = _mm256_add_pd(_mm256_loadu_pd(w), _mm256_set1_pd(-1.0));
-    _mm256_storeu_pd((double*)w, result);
-}
-inline static void convert_o0c1_avx256(const double* w) {
-    __m256d result = _mm256_sub_pd(_mm256_set1_pd(2.0), _mm256_loadu_pd(w));
-    _mm256_storeu_pd((double*)w, result);
-}
-inline static void convert_o0o1_avx256(const double* w) {
-    __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi64x(1));
-    __m256d result = _mm256_or_pd(_mm256_loadu_pd(w), mask);
-    result = _mm256_add_pd(result, _mm256_set1_pd(-1.0));
-    _mm256_storeu_pd((double*)w, result);
-}
-
-inline static void convert_c0o1_avx128(const double* w) {
-    __m128d result = _mm_add_pd(_mm_loadu_pd(w), _mm_set1_pd(-1.0));
-    _mm_storeu_pd((double*)w, result);
-}
-inline static void convert_o0c1_avx128(const double* w) {
-    __m128d result = _mm_sub_pd(_mm_set1_pd(2.0), _mm_loadu_pd(w));
-    _mm_storeu_pd((double*)w, result);
-}
-inline static void convert_o0o1_avx128(const double* w) {
-    __m128d mask = _mm_castsi128_pd(_mm_set1_epi64x(1));
-    __m128d result = _mm_or_pd(_mm_loadu_pd(w), mask);    
-    result = _mm_add_pd(result, _mm_set1_pd(-1.0));
-    _mm_storeu_pd((double*)w, result);
-}
 
 #define MAKE_PAIR(a, b) _mm256_loadu2_m128i((__m128i*)(b), (__m128i*)(a))
 #define LD256(a) _mm256_loadu_si256((__m256i*)(a))
@@ -130,96 +122,66 @@ inline static void convert_o0o1_avx128(const double* w) {
  * @param dsfmt dsfmt state vector.
  * @param array an 128-bit array to be filled by pseudorandom numbers.
  * @param size number of 128-bit pseudorandom numbers to be generated.
- * @param converter a function pointer for value conversion.
  */
+static inline __attribute__((always_inline, unused)) 
+void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
+                                  ptrdiff_t size) {
 
-inline static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
-                                ptrdiff_t size, enum DSFMT_CONVERT_TYPE convType) {
     ptrdiff_t i, j;
 
-    typedef void (*avx_converter_t)(const double *);
-    avx_converter_t conv128 = no_convert_avx, conv256 = no_convert_avx;
-    switch (convType)
-    {
-        case CONVERT_CLOSE0_OPEN1:
-            conv128 = convert_c0o1_avx128;
-            conv256 = convert_c0o1_avx256;
-            break;
-        case CONVERT_OPEN0_CLOSE1:
-            conv128 = convert_o0c1_avx128;
-            conv256 = convert_o0c1_avx256;
-            break;
-        case CONVERT_OPEN0_OPEN1:
-            conv128 = convert_o0o1_avx128;
-            conv256 = convert_o0o1_avx256;
-            break;
-        default: //NO_CONVERT_CLOSE1_OPEN2:
-            break;
-    }
-
     __m256i lung = _mm256_broadcastsi128_si256(dsfmt->status[DSFMT_N].si);
+
     i = 0;
 
     const ptrdiff_t loop1_end = DSFMT_N - DSFMT_POS1;
     for (; i <= loop1_end - 2; i += 2) {
         do_recursion_x2_avx2(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
     }
-
-    if ((DSFMT_N - DSFMT_POS1) & 1)
-    {
-        w128_t b[2];
-        b[0] = dsfmt->status[i + DSFMT_POS1];
-        b[1] = dsfmt->status[0];
-        do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i], b, &lung);
-        i+=2;
+    if (i < loop1_end) {
+        do_recursion_x1_avx2(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+        i++;
     }
-    // ループ2: 状態ベクトル後半と生成済み配列の一部を使って生成
+
     const ptrdiff_t loop2_end = DSFMT_N;
     for (; i <= loop2_end - 2; i += 2) {
         do_recursion_x2_avx2(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
     }
-    for (; i < loop2_end; i++) {
+    if (i < loop2_end) {
         do_recursion_x1_avx2(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
+        i++;
     }
 
-
-
-    // ループ3: メインの生成ループ
     const ptrdiff_t loop3_end = size - DSFMT_N;
     for (; i <= loop3_end - 2; i += 2) {
         do_recursion_x2_avx2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        conv256((double*)&array[i - DSFMT_N]);
     }
-    for (; i < loop3_end; i++) {
+    if (i < loop3_end) {
         do_recursion_x1_avx2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        conv128((double*)&array[i - DSFMT_N]);
+        i++;
     }
 
-    // ループ4: 次の状態ベクトルを準備 (前半)
     const ptrdiff_t loop4_end = 2 * DSFMT_N - size;
-    for (j = 0; j < loop4_end; j++) {
+    for (j = 0; j < loop4_end-1; j+=2) {
+        __m256i vec = _mm256_loadu_si256((__m256i*)&array[j + size - DSFMT_N]);
+        _mm256_storeu_si256((__m256i*)&dsfmt->status[j], vec);
+    }
+    if (j < loop4_end) {
         dsfmt->status[j] = array[j + size - DSFMT_N];
+        j++;
     }
 
-    // ループ5: 配列の残りを生成しつつ、次の状態ベクトルを準備 (後半)
     const ptrdiff_t loop5_end = size;
     for (; i <= loop5_end - 2; i += 2, j += 2) {
         do_recursion_x2_avx2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        dsfmt->status[j]     = array[i];
-        dsfmt->status[j + 1] = array[i + 1];
-        conv256((double*)&array[i - DSFMT_N]);
+        _mm256_storeu_si256((__m256i*)&dsfmt->status[j], _mm256_loadu_si256((__m256i*)&array[i]));
     }
-    for (; i < loop5_end; i++, j++) {
+    if (i < loop5_end) {
         do_recursion_x1_avx2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
         dsfmt->status[j] = array[i];
-        conv128((double*)&array[i - DSFMT_N]);
+        i++, j++;
     }
 
-    // ループ6: 生成された配列の末尾部分に変換を適用
-    for ( i = size - DSFMT_N; i < size; i++) {
-        conv128((double*)&array[i]);
-    }
-    dsfmt->status[DSFMT_N].si = _mm256_extracti128_si256(lung, 1);
+    dsfmt->status[DSFMT_N].si =  _mm256_extracti128_si256(lung, 1);
 }
 
 /**
@@ -233,21 +195,20 @@ inline static void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
 
     i = 0;
     
-    for (; i <  DSFMT_N - DSFMT_POS1 - 1; i += 2) {
-        do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i],
-                        &dsfmt->status[i + DSFMT_POS1], &lung);
-    }
-    if ((DSFMT_N - DSFMT_POS1) & 1)
-    {
-        w128_t b[2];
-        b[0] = dsfmt->status[i + DSFMT_POS1];
-        b[1] = dsfmt->status[0];
-        do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i], b, &lung);
-        i+=2;
-    }
-    for (; i < DSFMT_N - 1; i += 2) {
-        do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i],
+    for (; i <  DSFMT_N - 1; i += 2) {
+        if (i < DSFMT_N - DSFMT_POS1 - 1) {
+            do_recursion_x2_avx2(&dsfmt->status[i], 
+                &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+        } else if (i == DSFMT_N - DSFMT_POS1 - 1) {
+            w128_t tmp[2];
+            tmp[0] = dsfmt->status[i + DSFMT_POS1];
+            tmp[1] = dsfmt->status[0];
+            do_recursion_x2_avx2(&dsfmt->status[i], 
+                &dsfmt->status[i], tmp, &lung);
+        } else {
+            do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i],
                         &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+        }
     }
     if (i < DSFMT_N) {
         do_recursion_x1_avx2(&dsfmt->status[i], &dsfmt->status[i],
