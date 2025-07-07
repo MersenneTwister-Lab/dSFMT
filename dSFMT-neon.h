@@ -8,7 +8,7 @@
  *
  * @author Masaki Ota
  *
- * Copyright (C) 2025 Masaki Ota.
+ * Copyright (C) 2020-2025 Masaki Ota.
  *
  * The 3-clause BSD License is applied to this software, see
  * LICENSE.txt

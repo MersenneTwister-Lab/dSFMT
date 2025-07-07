@@ -23,13 +23,11 @@
 
 #include "dSFMT.h"
 
-enum DSFMT_CONVERT_TYPE {
-    NO_CONVERT_CLOSE1_OPEN2 = 0,
-    CONVERT_OPEN0_CLOSE1 = 1,
-    CONVERT_OPEN0_OPEN1 = 2,
-    CONVERT_CLOSE0_OPEN1 = 3
-};
-
+/*
+ * NOTE: This macro mitigates performance degradation caused by
+ *  the high latency of vperm* instructions.
+ */
+#define DSFMT_LUNG_SHORT_CUT
 
 #if defined(HAVE_SSE2)
 #  include <emmintrin.h>
@@ -85,9 +83,9 @@ static inline  void do_recursion(w128_t *r, w128_t *a, w128_t * b,
 }
 
 // note : AVX-512 not passed
-//#elif defined(HAVE_AVX512) && DSFMT_MEXP > 1279
-//#include "dSFMT-avx512.h"
-//#define DSFMT_GEN_RAND_CUSTOM
+#elif defined(HAVE_AVX512) && DSFMT_MEXP > 1279
+#include "dSFMT-avx512.h"
+#define DSFMT_GEN_RAND_CUSTOM
 
 #elif defined(HAVE_AVX2) && DSFMT_MEXP > 1279
 #include "dSFMT-avx2.h"
@@ -141,6 +139,7 @@ static inline void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
 
     z1 = _mm_slli_epi64(x1, DSFMT_SL1);
     z2 = _mm_slli_epi64(x2, DSFMT_SL1);
+
     z1 = _mm_xor_si128(z1, b[0].si);
     z2 = _mm_xor_si128(z2, b[1].si);
     
@@ -148,12 +147,13 @@ static inline void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     v1 = _mm_shuffle_epi32(z1, SSE2_SHUFF);
     y1 = _mm_shuffle_epi32(y2, SSE2_SHUFF);
 
-
     y1 = _mm_xor_si128(y1, z1);
+#if defined(HAVE_AVX512)
+    y2 = _mm_ternarylogic_epi32(y2, z2, v1, 0x96);
+#else
     z2 = _mm_xor_si128(z2, v1);
     y2 = _mm_xor_si128(y2, z2);
-
-
+#endif
     u->si = y2;
 
     v1 = _mm_srli_epi64(y1, DSFMT_SR);
@@ -161,11 +161,15 @@ static inline void do_recursion_x2(w128_t *r, w128_t *a, w128_t *b, w128_t *u) {
     w1 = _mm_and_si128(y1, sse2_param_mask.i128);
     w2 = _mm_and_si128(y2, sse2_param_mask.i128);
 
+#if defined(HAVE_AVX512)
+    v1 = _mm_ternarylogic_epi32(v1, x1, w1, 0x96);
+    v2 = _mm_ternarylogic_epi32(v2, x2, w2, 0x96);
+#else
     v1 = _mm_xor_si128(v1, x1);
     v2 = _mm_xor_si128(v2, x2);
     v1 = _mm_xor_si128(v1, w1);
     v2 = _mm_xor_si128(v2, w2);
-
+#endif
     r[0].si = v1;
     r[1].si = v2;
 }
@@ -310,19 +314,11 @@ static inline  void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
  * @param size number of 128-bit pseudorandom numbers to be generated.
  * @param converter a function pointer for value conversion.
  */
-///DSFMT_PST_INLINE 
-static inline __attribute__((always_inline, unused)) 
-void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
-
+static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
     ptrdiff_t i, j;
-
-
-
+ 
     w128_t lung = dsfmt->status[DSFMT_N];
     i = 0;
-
-
-
     const ptrdiff_t loop1_end = DSFMT_N - DSFMT_POS1;
 #if defined(DSFMT_RECURSION_X4)
     for (; i <= loop1_end - 4; i += 4) {
@@ -343,7 +339,6 @@ void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
         do_recursion(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
     }
 
-    // ループ2: 状態ベクトル後半と生成済み配列の一部を使って生成
     const ptrdiff_t loop2_end = DSFMT_N;
 
 #if defined(DSFMT_RECURSION_X4)
@@ -365,15 +360,10 @@ void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
         do_recursion(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
     }
 
-    // ループ3: メインの生成ループ
     const ptrdiff_t loop3_end = size - DSFMT_N;
 #if defined(DSFMT_RECURSION_X4)
     for (; i <= loop3_end - 4; i += 4) {
         do_recursion_x4(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
-        
-        
-        
-        
     }
 #endif
 #if defined(DSFMT_RECURSION_X3)
@@ -390,13 +380,11 @@ void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
         do_recursion(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
     }
 
-    // ループ4: 次の状態ベクトルを準備 (前半)
     const ptrdiff_t loop4_end = 2 * DSFMT_N - size;
     for (j = 0; j < loop4_end; j++) {
         dsfmt->status[j] = array[j + size - DSFMT_N];
     }
 
-    // ループ5: 配列の残りを生成しつつ、次の状態ベクトルを準備 (後半)
     const ptrdiff_t loop5_end = size;
 #if defined(DSFMT_RECURSION_X4)
     for (; i <= loop5_end - 4; i += 4, j += 4) {
@@ -415,7 +403,6 @@ void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
         dsfmt->status[j + 2] = array[i + 2];
     }
 #endif
-
 #if defined(DSFMT_RECURSION_X2)
     for (; i <= loop5_end - 2; i += 2, j += 2) {
         do_recursion_x2(&array[i], &array[i - DSFMT_N], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
@@ -430,6 +417,4 @@ void gen_rand_array(dsfmt_t *dsfmt, w128_t *array, ptrdiff_t size) {
     dsfmt->status[DSFMT_N] = lung;
 }
 #endif //DSFMT_GEN_RAND_CUSTOM
-
-
 #endif

@@ -393,8 +393,6 @@ void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], ptrdiff_t size)
     gen_rand_array(dsfmt, (w128_t *)array, size / 2);
 
     ptrdiff_t len = size / 2;
-
-    
     int i = 0;
 #if defined(HAVE_AVX512) 
     for (i = 0; i < len-3; i += 4) {
@@ -402,10 +400,8 @@ void dsfmt_fill_array_open_close(dsfmt_t *dsfmt, double array[], ptrdiff_t size)
     }
     if (i < len) {
         __mmask8 k = (1 << (2 * (len-i))) - 1;
-
         convert_o0c1_avx512((w128_t *)&array[i*2], k);
     }
-
 #elif defined(HAVE_AVX2)
     for (i = 0; i < len-1; i += 2) {
         convert_o0c1_avx((w128_t *)&array[i*2]);
@@ -441,7 +437,6 @@ void dsfmt_fill_array_close_open(dsfmt_t *dsfmt, double array[], ptrdiff_t size)
     ptrdiff_t len = size / 2;
     int i;
 #if defined(HAVE_AVX512) 
-
     for (i = 0; i < len-3; i+=4) {
         convert_c0o1_avx512((w128_t *)&array[i*2], 0xFF);
     }

@@ -8,7 +8,7 @@
  *
  * @author Masaki Ota
  *
- * Copyright (C) 2025 Masaki Ota.
+ * Copyright (C) 2020,2024,2025 Masaki Ota.
  *
  * The 3-clause BSD License is applied to this software, see
  * LICENSE.txt
@@ -18,6 +18,11 @@
 
 #include <immintrin.h>
 #include "dSFMT-params.h"
+
+typedef union {
+    __m256i ymm;
+    w128_t w128[2];
+} w128x2_t;
  
 /**
  * This function represents the recursion formula.
@@ -31,27 +36,38 @@ inline static void do_recursion_x2_avx2(w128_t *r, w128_t *a, w128_t *b, __m256i
     __m256i lung_shuf_idx = _mm256_setr_epi32(7, 6, 5, 4, 4, 5, 6, 7);
     __m256i word_reverse_idx = _mm256_setr_epi32(0, 1, 2, 3, 3, 2, 1, 0);
     __m256i dsfmt_mask = _mm256_broadcastsi128_si256(sse2_param_mask.i128);
+#if !defined(HAVE_AVX512)
     __m256i z_mask = _mm256_zextsi128_si256(_mm_set1_epi8(0xFF));
-
+#endif
     x = _mm256_loadu_si256((__m256i*)a);
     z = _mm256_slli_epi64(x, DSFMT_SL1);
     z = _mm256_xor_si256(z, _mm256_loadu_si256((__m256i*)b));
 
+    w = *u;
+#if defined(HAVE_AVX512)
+    v = _mm256_maskz_permutexvar_epi32(0xF0,word_reverse_idx, z);
+#if defined(DSFMT_LUNG_SHORT_CUT)
+    *u = _mm256_ternarylogic_epi32(w, v, z, 0x96);
+#endif
+    y = _mm256_permutevar8x32_epi32(w, lung_shuf_idx);
+    y = _mm256_ternarylogic_epi32(y, v, z, 0x96);
+
+#else /* only AVX2 */ 
     v = _mm256_permutevar8x32_epi32(z, word_reverse_idx);
     z = _mm256_andnot_si256(z_mask, z);
     z = _mm256_xor_si256(z, v);
 
-    w = *u;
-#if 0
-    y = _mm256_permutevar8x32_epi32(w, lung_shuf_idx);
+#if defined(DSFMT_LUNG_SHORT_CUT)
     *u = _mm256_xor_si256(w, z);
-    y = _mm256_xor_si256(y, z); 
-#else
+#endif
     y = _mm256_permutevar8x32_epi32(w, lung_shuf_idx);
     y = _mm256_xor_si256(y, z);
-    *u = y;
-
 #endif
+
+#if !defined(DSFMT_LUNG_SHORT_CUT)
+    *u = y;
+#endif
+
     v = _mm256_srli_epi64(y, DSFMT_SR);
     w = _mm256_and_si256(y, dsfmt_mask);
 
@@ -91,7 +107,6 @@ inline static void do_recursion_x1_avx2(w128_t *r, w128_t* a, w128_t *b, __m256i
 #endif
     lung_extend = _mm256_broadcastsi128_si256(y);
     *u = lung_extend;
-
     v = _mm_srli_epi64(y, DSFMT_SR);
     w = _mm_and_si128(y, sse2_param_mask.i128);
 #if defined(HAVE_AVX512)
@@ -106,15 +121,6 @@ inline static void do_recursion_x1_avx2(w128_t *r, w128_t* a, w128_t *b, __m256i
 
 
 
-
-
-#define MAKE_PAIR(a, b) _mm256_loadu2_m128i((__m128i*)(b), (__m128i*)(a))
-#define LD256(a) _mm256_loadu_si256((__m256i*)(a))
-#define LD128(a) _mm_loadu_si128((__m128i*)(a))
-
-#define ST256(addr, v) _mm256_storeu_si256((__m256i*)(addr), (v));
-#define ST128(addr, v) _mm_storeu_si128((__m128i*)(addr), (v));
-
 /**
  * This is the core function for generating pseudorandom numbers.
  * It fills the user-specified array and applies a given conversion.
@@ -123,29 +129,28 @@ inline static void do_recursion_x1_avx2(w128_t *r, w128_t* a, w128_t *b, __m256i
  * @param array an 128-bit array to be filled by pseudorandom numbers.
  * @param size number of 128-bit pseudorandom numbers to be generated.
  */
-static inline __attribute__((always_inline, unused)) 
-void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
+static void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
                                   ptrdiff_t size) {
 
     ptrdiff_t i, j;
-
     __m256i lung = _mm256_broadcastsi128_si256(dsfmt->status[DSFMT_N].si);
 
     i = 0;
-
     const ptrdiff_t loop1_end = DSFMT_N - DSFMT_POS1;
     for (; i <= loop1_end - 2; i += 2) {
         do_recursion_x2_avx2(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
     }
     if (i < loop1_end) {
-        do_recursion_x1_avx2(&array[i], &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
-        i++;
+        w128x2_t tmp;
+        tmp.ymm = _mm256_loadu2_m128i((__m128i*) &array[0], (__m128i*)&dsfmt->status[DSFMT_N-1]);
+        do_recursion_x2_avx2(&array[i], &dsfmt->status[i], tmp.w128, &lung);
+        i+=2;
     }
-
     const ptrdiff_t loop2_end = DSFMT_N;
     for (; i <= loop2_end - 2; i += 2) {
         do_recursion_x2_avx2(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
     }
+
     if (i < loop2_end) {
         do_recursion_x1_avx2(&array[i], &dsfmt->status[i], &array[i + DSFMT_POS1 - DSFMT_N], &lung);
         i++;
@@ -168,7 +173,7 @@ void gen_rand_array(dsfmt_t *dsfmt, w128_t *array,
     if (j < loop4_end) {
         dsfmt->status[j] = array[j + size - DSFMT_N];
         j++;
-    }
+    } 
 
     const ptrdiff_t loop5_end = size;
     for (; i <= loop5_end - 2; i += 2, j += 2) {
@@ -196,26 +201,22 @@ inline static void dsfmt_gen_rand_all_impl(dsfmt_t *dsfmt) {
     i = 0;
     
     for (; i <  DSFMT_N - 1; i += 2) {
+        w128x2_t tmp;
         if (i < DSFMT_N - DSFMT_POS1 - 1) {
-            do_recursion_x2_avx2(&dsfmt->status[i], 
-                &dsfmt->status[i], &dsfmt->status[i + DSFMT_POS1], &lung);
+            tmp.ymm = _mm256_loadu_si256((__m256i*)&dsfmt->status[i + DSFMT_POS1]);
         } else if (i == DSFMT_N - DSFMT_POS1 - 1) {
-            w128_t tmp[2];
-            tmp[0] = dsfmt->status[i + DSFMT_POS1];
-            tmp[1] = dsfmt->status[0];
-            do_recursion_x2_avx2(&dsfmt->status[i], 
-                &dsfmt->status[i], tmp, &lung);
+            tmp.ymm = _mm256_loadu2_m128i((__m128i*)&dsfmt->status[0], (__m128i*)&dsfmt->status[i + DSFMT_POS1]);
         } else {
-            do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i],
-                        &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
+            tmp.ymm = _mm256_loadu_si256((__m256i*)&dsfmt->status[i + DSFMT_POS1 - DSFMT_N]);
         }
+        do_recursion_x2_avx2(&dsfmt->status[i], &dsfmt->status[i], tmp.w128, &lung);
     }
     if (i < DSFMT_N) {
         do_recursion_x1_avx2(&dsfmt->status[i], &dsfmt->status[i],
                      &dsfmt->status[i + DSFMT_POS1 - DSFMT_N], &lung);
     }
 
-    ST128(&dsfmt->status[DSFMT_N], _mm256_extracti128_si256(lung, 1));
+    _mm_store_si128((__m128i*)&dsfmt->status[DSFMT_N], _mm256_extracti128_si256(lung, 1));
 
 }
 
