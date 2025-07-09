@@ -7,12 +7,14 @@
  *
  * @author Mutsuo Saito (Hiroshima University)
  * @author Makoto Matsumoto (Hiroshima University)
+ * @author Masaki Ota
  *
  * Copyright (C) 2007, 2008 Mutsuo Saito, Makoto Matsumoto and
  * Hiroshima University. All rights reserved.
  * Copyright (C) 2012 Mutsuo Saito, Makoto Matsumoto,
  * Hiroshima University and The University of Tokyo.
  * All rights reserved.
+ * Copyright (C) 2018, 2020 Masaki Ota. All rights reserved.
  *
  * The new BSD License is applied to this software.
  * see LICENSE.txt
@@ -152,6 +154,29 @@ union W128_T {
 union W128_T {
     __m128i si;
     __m128d sd;
+    uint64_t u[2];
+    uint32_t u32[4];
+    double d[2];
+};
+
+#if defined(HAVE_AVX2)
+#include <immintrin.h>
+union W256_T {
+    __m256i y;
+    union W128_T x[2];
+};
+#endif
+
+#elif defined (__AARCH64EL__)
+#include <arm_neon.h>
+/** 128-bit data structure */
+union W128_T {
+    uint64x2_t u64x2;
+    uint32x4_t u32x4;
+    uint8x16_t u8x16;
+    
+    float64x2_t f64x2;
+
     uint64_t u[2];
     uint32_t u32[4];
     double d[2];

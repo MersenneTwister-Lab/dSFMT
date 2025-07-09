@@ -1,0 +1,17 @@
+consumed time for generating 100000000 randoms.
+ST BLOCK [0, 1) AVE: 250ms.
+ST BLOCK (0, 1] AVE: 250ms.
+ST BLOCK (0, 1) AVE: 252ms.
+ST BLOCK [1, 2) AVE: 192ms.
+ST SEQ [0, 1) 1 AVE: 398ms.
+ST SEQ [0, 1) 2 AVE: 402ms.
+total = 500014655.815776
+ST SEQ (0, 1] 1 AVE: 405ms.
+ST SEQ (0, 1] 2 AVE: 406ms.
+total = 500035344.184224
+ST SEQ (0, 1) 1 AVE: 447ms.
+ST SEQ (0, 1) 2 AVE: 412ms.
+total = 500014655.815776
+ST SEQ [1, 2) 1 AVE: 401ms.
+ST SEQ [1, 2) 2 AVE: 397ms.
+total = 1500064655.815183
