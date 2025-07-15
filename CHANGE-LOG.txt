@@ -1,3 +1,7 @@
+ver 2.2.99 2025-7-15
+-------
+Masaki Ota adapted the dSFMT code to support AVX2, AVX512, and ARM64 NEON.
+
 ver 2.2.4 2020-11-10
 -------
 add #include stddef.h, change size_t to ptrdiff_t.

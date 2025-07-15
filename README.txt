@@ -1,6 +1,9 @@
  =================================================================
- dSFMT ver. 2.2.1
- 2011.11.10
+ dSFMT ver. 2.2.99
+ 2025.7.15
+
+ This version is experimental.
+ Masaki Ohta adapted the dSFMT code to support AVX2, AVX512, and ARM64 NEON.
 
  double precision SIMD oriented Fast Mersenne Twister(dSFMT)
  based on IEEE 754 floating point format.
